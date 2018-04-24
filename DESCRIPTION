@@ -1,0 +1,15 @@
+Package: ivtools
+Type: Package
+Title: Instrumental Variables
+Version: 1.0.0
+Date: 2018-04-18
+Author: Arvid Sjolander
+Maintainer: Arvid Sjolander <arvid.sjolander@ki.se>
+Description: Contains tools for instrumental variables estimation. Currently, only non-parametric bounds and two-stage least squares are implemented, but more methods will be added in the future. Balke, A. and Pearl, J. (1997) <doi:10.2307/2965583>, Vansteelandt S., Bowden J., Babanezhad M., Goetghebeur E. (2011) <doi:10.1214/11-STS360>. 
+License: LGPL (>= 3)
+Imports: stats, data.table, numDeriv
+NeedsCompilation: no
+RoxygenNote: 6.0.1
+Packaged: 2018-04-24 13:49:11 UTC; arvsjo
+Repository: CRAN
+Date/Publication: 2018-04-24 15:38:03 UTC

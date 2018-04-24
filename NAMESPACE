@@ -1,0 +1,10 @@
+importFrom(stats, "glm", "model.matrix", "update",
+           "predict", "residuals", "var",
+           "family", "pnorm", "printCoefmat", "plogis", "rbinom")
+importFrom(data.table, "data.table")
+importFrom(numDeriv, "jacobian")
+
+export(bounds, tsls)
+
+S3method(summary, tsls)
+S3method(print, summary.tsls)
