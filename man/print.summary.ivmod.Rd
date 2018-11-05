@@ -1,23 +1,23 @@
-\name{print.summary.tsls}
+\name{print.summary.ivmod}
 
-\alias{print.summary.tsls}
+\alias{print.summary.ivmod}
 
 \title{
-Prints summary of two-stage least squares estimation
+Prints summary of instrumental variable estimation
 }
 
 \description{
-This is a \code{print} method for class \code{"summary.tsls"}.
+This is a \code{print} method for class \code{"summary.ivmod"}.
 }
 
 \usage{
-\method{print}{summary.tsls}(x, digits=max(3L, getOption("digits")-3L), 
+\method{print}{summary.ivmod}(x, digits=max(3L, getOption("digits")-3L), 
   signif.stars=getOption("show.signif.stars"), ...)
 }
 
 \arguments{
   \item{x}{
-an object of class \code{"summary.tsls"}.
+an object of class \code{"summary.ivmod"}.
 }
   \item{digits}{
 the number of significant digits to use.
@@ -34,12 +34,9 @@ not used.
 Arvid Sjolander
 }
 
-\seealso{
-\code{\link{tsls}}
-}
 
 \examples{
 
-##See documentation for tsls
+##See documentation for ivglm, ivcoxph and ivah.
 
 }
