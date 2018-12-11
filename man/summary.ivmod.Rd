@@ -11,16 +11,13 @@ This is a \code{summary} method for class \code{"ivmod"}.
 }
 
 \usage{
-\method{summary}{ivmod}(object, digits=max(3L, getOption("digits")-3L), ...)
+\method{summary}{ivmod}(object, ...)
 }
 
 \arguments{
   \item{object}{
 an object of class \code{"ivmod"}.
 } 
-  \item{digits}{
-the number of significant digits to use.
-}  
  \item{\dots}{
 not used.
 }

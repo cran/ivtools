@@ -16,83 +16,90 @@ these would typically be confounders for the instrument and the outcome.
 } 
 
 \usage{
-ivah(method, Z, X, T, fitZ=NULL, fitX=NULL, fitT=NULL, data,  
-  control=FALSE, clusterid=NULL, event, max.time, max.time.psi, n.sim=10)
+ivah(estmethod, Z, X, T, fitZ=NULL, fitX=NULL, fitT=NULL, data,  
+  ctrl=FALSE, clusterid=NULL, event, max.time, max.time.psi, n.sim=100, ...)
 }
 
 \arguments{
-\item{method}{
+\item{estmethod}{
 a string specifying the desired estimation method; either \code{"ts"} for two-stage
 estimation, or \code{"g"} for G-estimation. 
 }
 \item{Z}{
 a string specifying the name of the instrument \eqn{Z} in \code{data}. This argument
-is not used when \code{method="ts"}. 
+is not used when \code{estmethod="ts"}. 
 }
   \item{X}{
 a string specifying the name of the exposure \eqn{X} in \code{data}. This argument
-is not used when \code{method="ts"}.
+is not used when \code{estmethod="ts"}.
 }
   \item{T}{
 a string specifying the name of the follow-up time \eqn{T} in \code{data}. This argument
-is not used when \code{method="ts"}.
+is not used when \code{estmethod="ts"}.
 }
   \item{fitZ}{
 an object of class \code{"glm"}, as returned by the \code{glm} function 
 in the \code{stats} package. This is a fitted GLM for \eqn{E(Z|L)}. This argument
-is not used when \code{method="ts"}. It is not required when \code{method="g"}
+is not used when \code{estmethod="ts"}. It is not required when \code{estmethod="g"}
 and covariates are absent. 
 }
 \item{fitX}{
 an object of class \code{"glm"}, as returned by the \code{glm} function 
   in the \code{stats} package. This is a fitted GLM for \eqn{E(X|L,Z)}. This argument
-is not used when \code{method="g"}. 
+is not used when \code{estmethod="g"}. 
 }
  \item{fitT}{
-If \code{method="ts"}, then this is an object of class \code{"ah"}, as 
+If \code{estmethod="ts"}, then this is an object of class \code{"ah"}, as 
   returned by the \code{ah} function in the \code{ivtools} package. 
   In this case it is a fitted AH model for \eqn{\lambda(t|L,X)}. 
-  This argument is not used when \code{method="g"}.  
+  This argument is not used when \code{estmethod="g"}.  
 } 
   \item{data}{
 a data frame containing the variables in the model. The covariates, instrument,
 exposure and outcome can have arbitrary names, e.g. they don't need to 
 be called \code{L}, \code{Z}, \code{X} and \code{T}.
 }  
-  \item{control}{
-should the control function \eqn{R=X-\hat{X}} be used when re-fitting 
-\code{fitY}? This argument is not used when \code{method="g"}.   
+  \item{ctrl}{
+logical. Should the control function \eqn{R=X-\hat{X}} be used when re-fitting 
+\code{fitY}? This argument is not used when \code{estmethod="g"}.   
 }
   \item{clusterid}{
 an optional string containing the name of a cluster identification variable when 
 data are clustered. Specifying \code{clusterid} corrects the standard errors
 but does not affect the estimates. This argument is not used when 
-\code{method="g"}, since correction for clustered data is currently not implemented
+\code{estmethod="g"}, since correction for clustered data is currently not implemented
 for G-estimation. 
 }
   \item{event}{
 a string specifying the name of the status indicator, 0="no event", 1="event".
-This argument is not used when \code{method="ts"}. 
+This argument is not used when \code{estmethod="ts"}. 
 }
 
   \item{max.time}{
-follow-up for estimating \eqn{B(t)} with G-estimation.
-This argument is not used when \code{method="ts"}. 
+optional follow-up for estimating \eqn{B(t)} with G-estimation. 
+Defaults to maximal observed follow-up time in \code{data}.
+This argument is not used when \code{estmethod="ts"}. 
 }
   \item{max.time.psi}{
-forllow-up for estimating \eqn{\psi} with G-estimation. 
-This argument is not used when \code{method="ts"}.
+optional follow-up for estimating \eqn{\psi} with G-estimation. 
+Defaults to maximal observed follow-up time in \code{data}.
+This argument is not used when \code{estmethod="ts"}.
 }
   \item{n.sim}{
-number of resamplings for testing goodness-of-fit of constant effects model
-for G-estimation. This argument is not used when \code{method="ts"}.  
+optional number of resamplings for testing goodness-of-fit of constant effects model
+for G-estimation. Defaults to 100. This argument is not used when \code{estmethod="ts"}.  
 }
+  \item{...}{
+  optional arguments passed on to the \code{nleqslv} function, which is used to 
+  solve the estimating equations when \code{estmethod="g"}. See the help pages 
+  for \code{nleqslv}. This argument is not used when \code{estmethod="ts"}. 
+  } 
 
 }
 
 \details{ 
 The \code{ivah} estimates different parameters, depending on whether
-\code{method="ts"} or \code{method="g"}. If \code{method="ts"}, then 
+\code{estmethod="ts"} or \code{estmethod="g"}. If \code{estmethod="ts"}, then 
 \code{ivah} uses two-stage estimation to estimate the parameter \eqn{\psi} in the causal AH model
 \deqn{\lambda(t|L,Z,X)-\lambda_0(t|L,Z,X)=m^T(L)X\psi.}
 Here, \eqn{\lambda_0(t|L,Z,X)} is counterfactual hazard function,
@@ -104,15 +111,15 @@ had the exposure been set to 0. The vector function \eqn{m(L)} contains interact
  \eqn{\hat{X}}. The obtained coefficient(s) for \eqn{X} is the two-stage 
  estimator \eqn{\hat{\psi}}.  
  
-If \code{method="g"}, then \code{ivah} uses G-estimation to estimate the function 
+If \code{estmethod="g"}, then \code{ivah} uses G-estimation to estimate the function 
 \eqn{B(t)} in the causal AH model
-\deqn{\lambda(t|L,Z,X)-\lambda_0(t|L,Z,X)=dB(t).} 
+\deqn{\lambda(t|L,Z,X)-\lambda_0(t|L,Z,X)=XdB(t).} 
 It also delivers an estimate of \eqn{dB(t)} assuming that this function is 
 constant across time (=\eqn{\psi}).
 }
 
 \value{
-\code{"ivah"} returns an object of class \code{"ivah"}, which inherits from 
+\code{ivah} returns an object of class \code{"ivah"}, which inherits from 
 class \code{"ivmod"}. An object of class \code{"ivah"} is a list containing 
 \item{call}{
   the matched call. 
@@ -131,47 +138,47 @@ obtained with the sandwich formula.
   logical. Was a solution found to the estimating equations?   
 }
 \item{fitZ}{
-  the model \code{fitZ} used in the estimation process when \code{method="g"}.
-  This element is NULL when \code{method="ts"}. 
+  the model \code{fitZ} used in the estimation process when \code{estmethod="g"}.
+  This element is NULL when \code{estmethod="ts"}. 
 }
 \item{fitY}{
-  the re-fitted model \code{fitY} used in the estimation process when \code{method="ts"}.
-  This element is NULL when \code{method="g"}.  
+  the re-fitted model \code{fitY} used in the estimation process when \code{estmethod="ts"}.
+  This element is NULL when \code{estmethod="g"}.  
 }
 \item{stime}{
-  the ordered event times within (0,max.time). This element is NULL when \code{method="ts"}. 
+  the ordered event times within (0,max.time). This element is NULL when \code{estmethod="ts"}. 
 }
 \item{B}{
-  the estimate of \eqn{B(t)}. This element is NULL when \code{method="ts"}.   
+  the estimate of \eqn{B(t)}. This element is NULL when \code{estmethod="ts"}.   
 }
 \item{se_B}{
-  the standard error of the estimate of \eqn{B(t)}. This element is NULL when \code{method="ts"}.
+  the standard error of the estimate of \eqn{B(t)}. This element is NULL when \code{estmethod="ts"}.
 }
 \item{pval_0}{
   p-value corresponding to supremum test of the null \eqn{B(t)=0}. 
-  This element is NULL when \code{method="ts"}.
+  This element is NULL when \code{estmethod="ts"}.
 }
 \item{eps_B}{
   the iid-decomposition of \eqn{\sqrt{n}(\hat{B}(t) - B(t))}. 
-  This element is NULL when \code{method="ts"}.
+  This element is NULL when \code{estmethod="ts"}.
 }
 \item{pval_psi}{
   p-value corresponding to the null \eqn{\psi=0}. 
-  This element is NULL when \code{method="ts"}.
+  This element is NULL when \code{estmethod="ts"}.
 }
 \item{pval_GOF_sup}{
   p-value corresponding to supremum test of the null \eqn{B(t)=\psi}.  
-  This element is NULL when \code{method="ts"}.
+  This element is NULL when \code{estmethod="ts"}.
 }
 \item{pval_GOF_CvM}{
   as pval_GOF_sup but now based on the Cramer Von Mises test statistic.  
-  This element is NULL when \code{method="ts"}.
+  This element is NULL when \code{estmethod="ts"}.
 }
 \item{GOF.resamp}{
   a matrix with first row the ordered jump times in (0,max.time.bet),
  second row the observed test process, and the remaining rows are 
  50 processes sampled under the null. 
-  This element is NULL when \code{method="ts"}.
+  This element is NULL when \code{estmethod="ts"}.
 }
 }
 
@@ -197,7 +204,7 @@ through the input models. Thus, when models are used as input to \code{ivah},
 these models have to be fitted with the same weights.
 
 Left-truncation and correction of standard errors for clustered data are currerntly not
-implemented when \code{method="g"}.     
+implemented when \code{estmethod="g"}.     
 }
 
 \examples{
@@ -225,12 +232,12 @@ data$T <- data$T+rnorm(n=nrow(data), sd=0.001)
 #two-stage estimation
 fitX <- glm(formula=X~Z+L, data=data)
 fitT <- ah(formula=Surv(T, d)~X+L+X*L, data=data)
-fitIV <- ivah(method="ts", fitX=fitX, fitT=fitT, data=data, control=TRUE)
+fitIV <- ivah(estmethod="ts", fitX=fitX, fitT=fitT, data=data, ctrl=TRUE)
 summary(fitIV)
 
 #G-estimation
 fitZ <- glm(formula=Z~L, family="binomial", data=data)
-fitIV <- ivah(method="g", Z="Z", X="X", T="T", fitZ=fitZ, data=data,  
+fitIV <- ivah(estmethod="g", Z="Z", X="X", T="T", fitZ=fitZ, data=data,  
           event="d", max.time=4, max.time.psi=4, n.sim=100)
 summary(fitIV)
 plot(fitIV)

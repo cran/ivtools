@@ -8,7 +8,7 @@ Plots result of G-estimation in causal AH model.
 
 \description{
 This is a \code{plot} method for class \code{"ivah"}. It only supports
-objects fitted with \code{method="g"}. 
+objects fitted with \code{estmethod="g"}. 
 }
 
 \usage{
@@ -17,7 +17,7 @@ objects fitted with \code{method="g"}.
 
 \arguments{
   \item{x}{
-an object of class \code{"ivah"}, fitted with \code{method="g"}.
+an object of class \code{"ivah"}, fitted with \code{estmethod="g"}.
 } 
   \item{gof}{
 should we plot the goodness-of-fit process? If not, then \eqn{B(t)} is plotted

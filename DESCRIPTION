@@ -1,8 +1,8 @@
 Package: ivtools
 Type: Package
 Title: Instrumental Variables
-Version: 2.0.0
-Date: 2018-11-05
+Version: 2.1.0
+Date: 2018-12-01
 Author: Arvid Sjolander, Elisabeth Dahlqwist, Torben Martinussen
 Maintainer: Arvid Sjolander <arvid.sjolander@ki.se>
 Description: Contains tools for instrumental variables estimation. Currently, non-parametric bounds, two-stage estimation and G-estimation are implemented. Balke, A. and Pearl, J. (1997) <doi:10.2307/2965583>, Vansteelandt S., Bowden J., Babanezhad M., Goetghebeur E. (2011) <doi:10.1214/11-STS360>. 
@@ -11,6 +11,6 @@ Imports: stats, data.table, numDeriv, nleqslv, survival, ahaz, Rcpp
 LinkingTo: Rcpp
 NeedsCompilation: yes
 RoxygenNote: 6.0.1
-Packaged: 2018-11-05 10:55:02 UTC; arvsjo
+Packaged: 2018-12-11 14:59:48 UTC; arvsjo
 Repository: CRAN
-Date/Publication: 2018-11-05 11:20:03 UTC
+Date/Publication: 2018-12-11 15:20:03 UTC

@@ -16,42 +16,42 @@ these would typically be confounders for the instrument and the outcome.
 }     
 
 \usage{
-ivglm(method, Z, X, Y, fitZ=NULL, fitX=NULL, fitY=NULL, data, 
-  formula=~1, control=FALSE, clusterid=NULL, link)
+ivglm(estmethod, Z, X, Y, fitZ=NULL, fitX=NULL, fitY=NULL, data, 
+  formula=~1, ctrl=FALSE, clusterid=NULL, link, ...)
 }
 
 \arguments{
-\item{method}{
+\item{estmethod}{
 a string specifying the desired estimation method; either \code{"ts"} for two-stage
 estimation, or \code{"g"} for G-estimation. 
 }
 \item{Z}{
 a string specifying the name of the instrument \eqn{Z} in \code{data}. This argument
-is not used when \code{method="ts"}. 
+is not used when \code{estmethod="ts"}. 
 }
   \item{X}{
 a string specifying the name of the exposure \eqn{X} in \code{data}. This argument
-is not used when \code{method="ts"}.
+is not used when \code{estmethod="ts"}.
 }
   \item{Y}{
 a string specifying the name of the outcome \eqn{Y} in \code{data}. This argument
-is not used when \code{method="ts"}.
+is not used when \code{estmethod="ts"}.
 }
   \item{fitZ}{
 an object of class \code{"glm"}, as returned by the \code{glm} function 
 in the \code{stats} package. This is a fitted GLM for \eqn{E(Z|L)}. This argument
-is not used when \code{method="ts"}. It is not required when \code{method="g"}
+is not used when \code{estmethod="ts"}. It is not required when \code{estmethod="g"}
 and covariates are absent. 
 }
 \item{fitX}{
 an object of class \code{"glm"}, as returned by the \code{glm} function 
   in the \code{stats} package. This is a fitted GLM for \eqn{E(X|L,Z)}. This argument
-is not used when \code{method="g"}. 
+is not used when \code{estmethod="g"}. 
 }
  \item{fitY}{
 an object of class \code{"glm"}, as returned by the \code{glm} function 
   in the \code{stats} package. This is a fitted GLM for \eqn{E(Y|L,Z,X)}. 
-This argument is not used when \code{method="g"} and \code{link="identity"} or 
+This argument is not used when \code{estmethod="g"} and \code{link="identity"} or 
 \code{link="log"}.  
 } 
   \item{data}{
@@ -62,11 +62,11 @@ be called \code{L}, \code{Z}, \code{X} and \code{Y}.
   \item{formula}{
   an object of class \code{"formula"}, with no left-hand side. This specifies
 the causal interaction terms \eqn{m(L)}; see `Details'. Defaults to \code{~1}, i.e. 
-main effect only. This argument is not used when \code{method="ts"}.  
+main effect only. This argument is not used when \code{estmethod="ts"}.  
 }
-  \item{control}{
-should the control function \eqn{R=X-\hat{X}} be used when re-fitting 
-\code{fitY}? This argument is not used when \code{method="g"}.   
+  \item{ctrl}{
+logical. Should the control function \eqn{R=X-\hat{X}} be used when re-fitting 
+\code{fitY}? This argument is not used when \code{estmethod="g"}.   
 }
   \item{clusterid}{
 an optional string containing the name of a cluster identification variable when 
@@ -78,6 +78,11 @@ but does not affect the estimates.
  see `Details'. Either \code{"identity"}, \code{"log"}, or \code{"logit"}. 
   
 }
+\item{...}{
+  optional arguments passed on to the \code{nleqslv} function, which is used to 
+  solve the estimating equations when \code{estmethod="g"}. See the help pages 
+  for \code{nleqslv}. This argument is not used when \code{estmethod="ts"}. 
+  } 
 
 }
 
@@ -88,34 +93,34 @@ Here, \eqn{E(Y_0|L,Z,X)} is counterfactual mean of the outcome,
 had the exposure been set to 0. The link function
  \eqn{\eta} is either the identity, log or logit link, as specified by 
  the \code{link} argument. The vector function \eqn{m(L)} contains interaction terms
- between \eqn{L} and \eqn{X}. If \code{method="ts"}, then these are specified 
- implicitly through the model \code{fitY}. If \code{method="g"}, then these     
+ between \eqn{L} and \eqn{X}. If \code{estmethod="ts"}, then these are specified 
+ implicitly through the model \code{fitY}. If \code{estmethod="g"}, then these     
  are specified explicitly through the \code{formula} argument.
  
-If \code{method="ts"}, then two-stage estimation of \eqn{\psi} is performed.
+If \code{estmethod="ts"}, then two-stage estimation of \eqn{\psi} is performed.
 In this case, the model \code{fitX} is used to construct predictions
 \eqn{\hat{X}=\hat{E}(X|L,Z)}. These predictions are subsequently used to re-fit 
 the model \code{fitY}, with \eqn{X} replaced with \eqn{\hat{X}}. The obtained 
 coefficient(s) for \eqn{X} is the two-stage estimator \eqn{\hat{\psi}}. 
 
-If \code{method="g"}, then G-estimation of \eqn{\psi} is performed. In this case,
+If \code{estmethod="g"}, then G-estimation of \eqn{\psi} is performed. In this case,
 the estimator is obtained as the solution to the estimating equation
-\deqn{\sum_{i=1}^nm(L_i)\{Z_i-\hat{E}(Z|L_i)\}h_i(\psi)=0.}
+\deqn{H_(\psi)=\sum_{i=1}^nm(L_i)\{Z_i-\hat{E}(Z|L_i)\}h_i(\psi)=0.}
 In this equation, \eqn{\hat{E}(Z|L_i)} is an estimate of \eqn{E(Z|L_i)}
 obtained from the model \code{fitZ}. In the absence of \eqn{L}, \eqn{E(Z|L_i)} reduces to 
 \eqn{E(Z)}, which is estimated as \eqn{\sum_{i=1}^nZ_i/n}. In this case, 
 \code{fitZ} may be omitted. The function \eqn{h_i(\psi)} is defined as
 \deqn{h_i(\psi)=Y_i-m^T(L_i)\psi X_i}
 when \code{link="identity"},
-\deqn{h_i(\psi)=Y_i exp\{-m^T(L_i)\psi X_i\}}
+\deqn{h_i(\psi)=Y_i\textrm{exp}\{-m^T(L_i)\psi X_i\}}
 when \code{link="log"}, and
-\deqn{h_i(\psi)=expit\{\hat{E}(Y|L_i,Z_i,X_i)-m^T(L_i)\psi X_i\}}
+\deqn{h_i(\psi)=\textrm{expit}\{\hat{E}(Y|L_i,Z_i,X_i)-m^T(L_i)\psi X_i\}}
 when \code{link="logit"}. In the latter, \eqn{\hat{E}(Y|L_i,Z_i,X_i)} is
 an estimate of \eqn{E(Y|L_i,Z_i,X_i)} obtained from the model \code{fitY}. 
 }
 
 \value{
-\code{"ivglm"} returns an object of class \code{"ivglm"}, which inherits from 
+\code{ivglm} returns an object of class \code{"ivglm"}, which inherits from 
 class \code{"ivmod"}. An object of class \code{"ivglm"} is a list containing 
 \item{call}{
   the matched call. 
@@ -130,28 +135,28 @@ class \code{"ivmod"}. An object of class \code{"ivglm"} is a list containing
   the variance-covariance matrix for the estimate of \eqn{\psi}, 
 obtained with the sandwich formula. 
   }
-\item{estfun}{
-  a matrix of all estimating functions used in the estimation process.
-One row for each subject, one column for each parameter. If \code{method="ts"},
+\item{estfunall}{
+  a matrix of all subject-specific contributions to the estimating functions used in the estimation process.
+One row for each subject, one column for each parameter. If \code{estmethod="ts"},
 then the first columns correspond to the parameters estimated by \code{fitX}, and
 the last columns correspond to the parameters estimated by the re-fitted model 
-\code{fitY}. If \code{method="g"}, then the first columns correspond to \eqn{\psi}, 
+\code{fitY}. If \code{estmethod="g"}, then the first columns correspond to \eqn{\psi}, 
 and the remaining columns correspond to the parameters estimated by \code{fitZ} and 
 (if \code{link="logit"}) \code{fitY}.    
   }
 \item{d.estfun}{
-  the jacobian matrix of \code{colSums(estfun)}.    
+  the jacobian matrix of \code{colSums(estfunall)}.    
   }
 \item{converged}{
   logical. Was a solution found to the estimating equations?   
 }
 \item{fitZ}{
-  the model \code{fitZ} used in the estimation process when \code{method="g"}.
-  This element is NULL when \code{method="ts"}. 
+  the model \code{fitZ} used in the estimation process when \code{estmethod="g"}.
+  This element is NULL when \code{estmethod="ts"}. 
 }
 \item{fitY}{
-  the re-fitted model \code{fitY} used in the estimation process when \code{method="ts"}.
-  This element is NULL when \code{method="g"}. 
+  the re-fitted model \code{fitY} used in the estimation process when \code{estmethod="ts"}.
+  This element is NULL when \code{estmethod="g"}. 
 }
 
 }
@@ -174,7 +179,7 @@ Arvid Sjolander.
 \note{
 \code{ivglm} allows for weights. However, these are defined implicitly 
 through the input models. Thus, when models are used as input to \code{ivglm}, 
-these models have to be fitted with the same weights. When \code{method="g"}
+these models have to be fitted with the same weights. When \code{estmethod="g"}
 the weights are taken from \code{fitZ}, so this must be specified.    
 }
 
@@ -201,12 +206,12 @@ data <- data.frame(L, Z, X, Y)
 #two-stage estimation
 fitX <- glm(formula=X~Z, data=data)
 fitY <- glm(formula=Y~X+L+X*L, data=data)
-fitIV <- ivglm(method="ts", fitX=fitX, fitY=fitY, data=data, control=TRUE) 
+fitIV <- ivglm(estmethod="ts", fitX=fitX, fitY=fitY, data=data, ctrl=TRUE) 
 summary(fitIV)
 
 #G-estimation
 fitZ <- glm(formula=Z~L, data=data)
-fitIV <- ivglm(method="g", Z="Z", X="X", Y="Y", fitZ=fitZ, data=data, 
+fitIV <- ivglm(estmethod="g", Z="Z", X="X", Y="Y", fitZ=fitZ, data=data, 
   formula=~L, link="identity")
 summary(fitIV)
 
@@ -221,12 +226,12 @@ data <- data.frame(Z, X, Y)
 #two-stage estimation
 fitX <- glm(formula=X~Z, family="binomial", data=data)
 fitY <- glm(formula=Y~X, family="binomial", data=data)
-fitIV <- ivglm(method="ts", fitX=fitX, fitY=fitY, data=data, control=TRUE) 
+fitIV <- ivglm(estmethod="ts", fitX=fitX, fitY=fitY, data=data, ctrl=TRUE) 
 summary(fitIV)
 
 #G-estimation
 fitY <- glm(formula=Y~X+Z+X*Z, family="binomial", data=data)
-fitIV <- ivglm(method="g", Z="Z", X="X", Y="Y", fitY=fitY, data=data, link="logit")
+fitIV <- ivglm(estmethod="g", Z="Z", X="X", Y="Y", fitY=fitY, data=data, link="logit")
 summary(fitIV)
 
 

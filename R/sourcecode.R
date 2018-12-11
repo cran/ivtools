@@ -48,12 +48,13 @@ confint.ivmod <- function(object, parm, level=0.95, ...){
   lower <- est-qqq*se
   upper <- est+qqq*se
   ci <- cbind(lower, upper)
+  colnames(ci) <- paste(100*c((1-level)/2 , (1+level)/2), "%")
   return(ci)
   
 }
 
 #computes estimating function for each subject
-estfun <- function(b, Z, X, Y, type, fitZ, fitY, npsi, nZ, nY, 
+estfunall <- function(b, Z, X, Y, type, fitZ, fitY, npsi, nZ, nY, 
   designpsi, designZ, designY, weights, data, y, t1, nuisance){
 
   n <- nrow(data)
@@ -164,7 +165,7 @@ estfun <- function(b, Z, X, Y, type, fitZ, fitY, npsi, nZ, nY,
   
 }
 
-estfunSums <- function(object, psi){
+estfun <- function(object, lower, upper, step){
  
   #extract stuff from fitted gest object 
   input <- object$input
@@ -187,7 +188,7 @@ estfunSums <- function(object, psi){
     fitY <- input$fitT
   }
   if(class(object)[1]=="ivah")
-    type <- "ah"
+    stop("estfun is not implemented for ivah objects.")
   formula <- input$formula
   y <- object$t
   fitZ <- object$fitZ
@@ -204,31 +205,37 @@ estfunSums <- function(object, psi){
   designpsi <- stuff$designpsi
   weights <- stuff$weights
   t1 <- stuff$t1
+   
+  est <- object$est
+  if(missing(lower))
+    lower <- est-0.5
+  if(missing(upper))
+    upper <- est+0.5
+  if(missing(step))
+    step <- rep(0.01, npsi)
+    
+  f <- list()
+  for(i in 1:npsi){
+    tmp <- seq(lower[i], upper[i], step[i])
+    m <- matrix(nrow=length(tmp), ncol=2)
+    colnames(m) <- c("psi", "Hsum")
+    m[, 1] <- tmp 
+    for(j in 1:length(tmp)){
+      psii <- est
+      psii[i] <- tmp[j]
+      Uj <- estfunall(b=c(psii, est.nuisance), Z=Z, X=X, Y=Y, type=type, 
+        fitZ=fitZ, fitY=fitY, npsi=npsi, nZ=nZ, nY=nY, 
+        designpsi=designpsi, designZ=designZ, designY=designY, 
+        weights=weights, data=data, y=y, t1=t1, nuisance=FALSE)
+      m[j, 2] <- colSums(Uj)[i] 
+    }
+    f[[i]] <- m
+  }
+  names(f) <- names(est)
   
-  #loop over values of psi and compute sums of estimating functions
-  if(is.vector(psi)){
-    N <- length(psi)
-    U <- vector(length=N)
-  }
-  if(is.matrix(psi)){
-    N <- nrow(psi)
-    U <- matrix(nrow=N, ncol=npsi)
-  }
-  for(i in 1:N){
-    if(is.vector(psi))
-      psii <- psi[i]
-    if(is.matrix(psi))
-      psii <- psi[i, ]
-    Ui <- estfun(b=c(psii, est.nuisance), Z=Z, X=X, Y=Y, type=type, 
-      fitZ=fitZ, fitY=fitY, npsi=npsi, nZ=nZ, nY=nY, 
-      designpsi=designpsi, designZ=designZ, designY=designY, 
-      weights=weights, data=data, y=y, t1=t1, nuisance=FALSE)
-    if(is.vector(psi))
-      U[i] <- colSums(Ui)
-    if(is.matrix(psi))
-      U[i, ] <- colSums(Ui)
-  }
-  return(U) 
+  out <- list(f=f, est=est)
+  class(out) <- "estfun"
+  return(out) 
 } 
 
 expand <- function(x, names){
@@ -240,15 +247,16 @@ expand <- function(x, names){
 } 
 
 gest <- function(Z, X, Y, type, data, formula=~1, y=NULL, fitY=NULL, fitZ=NULL, 
-  clusterid=NULL){
+  clusterid=NULL, ...){
   
+  dots <- list(...)
   n <- nrow(data) 
   
   #find optimal y if not provided
   if(type=="coxph" & is.null(y)){
     f <- function(y){
       fit <- gest(Z=Z, X=X, Y=Y, type="coxph", formula=formula, y=y, 
-        fitY=fitY, fitZ=fitZ, data=data, clusterid=clusterid)
+        fitY=fitY, fitZ=fitZ, data=data, clusterid=clusterid, ...)
       return(sum(diag(fit$vcov)))
     }
     if(class(fitY)[1]=="survfit"){
@@ -290,14 +298,18 @@ gest <- function(Z, X, Y, type, data, formula=~1, y=NULL, fitY=NULL, fitZ=NULL,
   estfunsums <- function(b, nuisance=FALSE){
     if(length(b)==npsi)
       b <- c(b, est.nuisance)
-    return(colSums(estfun(b=b, Z=Z, X=X, Y=Y, type=type, 
+    return(colSums(estfunall(b=b, Z=Z, X=X, Y=Y, type=type, 
       fitZ=fitZ, fitY=fitY, npsi=npsi, nZ=nZ, nY=nY, 
       designpsi=designpsi, designZ=designZ, designY=designY, 
       weights=weights, data=data, y=y, t1=t1, nuisance=nuisance)))
   }
   
   #compute estimate of psi
-  fit.nleqslv <- nleqslv(x=c(rep(0, npsi)), fn=estfunsums) 
+  args <- list(fn=estfunsums)
+  args[names(dots)] <- dots
+  if(is.na(match("x", names(args))))
+    args$x <- rep(0, npsi)   
+  fit.nleqslv <- do.call("nleqslv", args=args)
   est <- fit.nleqslv$x
   names(est) <- paste0(X, ":", colnames(designpsi))
   names(est)[1] <- X
@@ -305,7 +317,7 @@ gest <- function(Z, X, Y, type, data, formula=~1, y=NULL, fitY=NULL, fitZ=NULL,
  
  #compute variance if solution to estimating equation was found
   if(converged){      
-    U <- estfun(b=c(est, est.nuisance), Z=Z, X=X, Y=Y, type=type, 
+    U <- estfunall(b=c(est, est.nuisance), Z=Z, X=X, Y=Y, type=type, 
       fitZ=fitZ, fitY=fitY, npsi=npsi, nZ=nZ, nY=nY, 
       designpsi=designpsi, designZ=designZ, designY=designY, 
       weights=weights, data=data, y=y, t1=t1, nuisance=TRUE) 
@@ -355,7 +367,7 @@ gest <- function(Z, X, Y, type, data, formula=~1, y=NULL, fitY=NULL, fitZ=NULL,
   rownames(vcov) <- names(est)
   colnames(vcov) <- names(est)
   
-  result <- list(est=est, vcov=vcov, estfun=U, d.estfun=I, converged=converged, 
+  result <- list(est=est, vcov=vcov, estfunall=U, d.estfun=I, converged=converged, 
     fitZ=fitZ, y=y)
   
   class(result) <- "gest"
@@ -364,19 +376,23 @@ gest <- function(Z, X, Y, type, data, formula=~1, y=NULL, fitY=NULL, fitZ=NULL,
 
 }
 
-ivah <- function(method, Z, X, T, fitZ=NULL, fitX=NULL, fitT=NULL, data,  
-  control=FALSE, clusterid=NULL, event, max.time, max.time.psi, n.sim=10){
+ivah <- function(estmethod, Z, X, T, fitZ=NULL, fitX=NULL, fitT=NULL, data,  
+  ctrl=FALSE, clusterid=NULL, event, max.time, max.time.psi, n.sim=100, ...){
   
   call <- match.call()
   input <- as.list(environment())
   
-  if(method=="ts"){
-    result <- tsest(fitX=fitX, fitY=fitT, data=data, control=control, 
+  if(estmethod=="ts"){
+    result <- tsest(fitX=fitX, fitY=fitT, data=data, ctrl=ctrl, 
       clusterid=clusterid)
   }
-  if(method=="g"){
+  if(estmethod=="g"){
+    if(missing(max.time))
+      max.time <- max(data[, T])
+    if(missing(max.time.psi))
+      max.time.psi <- max(data[, T])
     result <- scs(Z=Z, X=X, time=T, status=event, data=data, fitZ=fitZ, 
-      max.time=max.time, max.time.beta=max.time.psi, n.sim=n.sim)
+      max.time=max.time, max.time.beta=max.time.psi, n.sim=n.sim, ...)
     result$converged <- !is.na(result$est)
     
   }
@@ -389,7 +405,9 @@ ivah <- function(method, Z, X, T, fitZ=NULL, fitX=NULL, fitT=NULL, data,
 
 }
 
-ivbounds <- function(data, Z, X, Y, weights){
+ivbounds <- function(data, Z, X, Y, monotonicity=FALSE, weights){
+  
+  call <- match.call()
   
   zlev <- c(0, 1)
   xlev <- c(0, 1)
@@ -427,96 +445,132 @@ ivbounds <- function(data, Z, X, Y, weights){
     }
   }
   if(length(zlev)==2){
-    p0.low1 <- p10.0+p11.0-p00.1-p11.1
-    p0.low2 <- p10.1
-    p0.low3 <- p10.0
-    p0.low4 <- p01.0+p10.0-p00.1-p01.1
-    p0.upp1 <- p01.0+p10.0+p10.1+p11.1
-    p0.upp2 <- 1-p00.1
-    p0.upp3 <- 1-p00.0
-    p0.upp4 <- p10.0+p11.0+p01.1+p10.1
-    p0.low <- c(p0.low1, p0.low2, p0.low3, p0.low4)
-    p0.upp <- c(p0.upp1, p0.upp2, p0.upp3, p0.upp4) 
-    p1.low1 <- p11.0
-    p1.low2 <- p11.1
-    p1.low3 <- -p00.0-p01.0+p00.1+p11.1
-    p1.low4 <- -p01.0-p10.0+p10.1+p11.1
-    p1.upp1 <- 1-p01.1
-    p1.upp2 <- 1-p01.0
-    p1.upp3 <- p00.0+p11.0+p10.1+p11.1
-    p1.upp4 <- p10.0+p11.0+p00.1+p11.1
-    p1.low <- c(p1.low1, p1.low2, p1.low3, p1.low4)
-    p1.upp <- c(p1.upp1, p1.upp2, p1.upp3, p1.upp4)  
+    if(monotonicity){
+      p0.low <- p10.0
+      p0.upp <- 1-p00.0
+      p1.low <- p11.1
+      p1.upp <- 1-p01.1
+    }else{
+      p0.low1 <- p10.0+p11.0-p00.1-p11.1
+      p0.low2 <- p10.1
+      p0.low3 <- p10.0
+      p0.low4 <- p01.0+p10.0-p00.1-p01.1
+      p0.upp1 <- p01.0+p10.0+p10.1+p11.1
+      p0.upp2 <- 1-p00.1
+      p0.upp3 <- 1-p00.0
+      p0.upp4 <- p10.0+p11.0+p01.1+p10.1
+      p0.low <- c(p0.low1, p0.low2, p0.low3, p0.low4)
+      p0.upp <- c(p0.upp1, p0.upp2, p0.upp3, p0.upp4) 
+      p1.low1 <- p11.0
+      p1.low2 <- p11.1
+      p1.low3 <- -p00.0-p01.0+p00.1+p11.1
+      p1.low4 <- -p01.0-p10.0+p10.1+p11.1
+      p1.upp1 <- 1-p01.1
+      p1.upp2 <- 1-p01.0
+      p1.upp3 <- p00.0+p11.0+p10.1+p11.1
+      p1.upp4 <- p10.0+p11.0+p00.1+p11.1
+      p1.low <- c(p1.low1, p1.low2, p1.low3, p1.low4)
+      p1.upp <- c(p1.upp1, p1.upp2, p1.upp3, p1.upp4)
+    }
+      
   }
   if(length(zlev)==3){
-    p0.low1 <- p10.0
-    p0.low2 <- p10.1
-    p0.low3 <- p10.2
-    p0.low4 <- p10.0+p11.0+p10.1+p01.1-1
-    p0.low5 <- p10.0+p01.0+p10.1+p11.1-1
-    p0.low6 <- p10.1+p11.1+p10.2+p01.2-1
-    p0.low7 <- p10.1+p01.1+p10.2+p11.2-1      
-    p0.low8 <- p10.2+p11.2+p10.0+p01.0-1
-    p0.low9 <- p10.2+p01.2+p10.0+p11.0-1 
-    p0.upp1 <- 1-p00.0
-    p0.upp2 <- 1-p00.1
-    p0.upp3 <- 1-p00.2
-    p0.upp4 <- p10.0+p01.0+p10.1+p11.1
-    p0.upp5 <- p10.0+p11.0+p10.1+p01.1
-    p0.upp6 <- p10.1+p01.1+p10.2+p11.2
-    p0.upp7 <- p10.1+p11.1+p10.2+p01.2
-    p0.upp8 <- p10.2+p01.2+p10.0+p11.0
-    p0.upp9 <- p10.2+p11.2+p10.0+p01.0
-    p0.low <- max(p0.low1, p0.low2, p0.low3, p0.low4, p0.low5, p0.low6, p0.low7, 
-      p0.low8, p0.low9)
-    p0.upp <- min(p0.upp1, p0.upp2, p0.upp3, p0.upp4, p0.upp5, p0.upp6, p0.upp7, 
-      p0.upp8, p0.upp9)
-    p1.low1 <- p11.0
-    p1.low2 <- p11.1
-    p1.low3 <- p11.2
-    p1.low4 <- p10.0+p11.0-p10.1-p01.1
-    p1.low5 <- -p10.0-p01.0+p10.1+p11.1
-    p1.low6 <- p10.1+p11.1-p10.2-p01.2
-    p1.low7 <- -p10.1-p01.1+p10.2+p11.2
-    p1.low8 <- p10.2+p11.2-p10.0 -p01.0
-    p1.low9 <- -p10.2-p01.2+p10.0+p11.0
-    p1.upp1 <- 1-p01.0
-    p1.upp2 <- 1-p01.1
-    p1.upp3 <- 1-p01.2
-    p1.upp4 <- p10.0+p11.0-p10.1-p01.1+1
-    p1.upp5 <- -p10.0-p01.0+p10.1+p11.1+1
-    p1.upp6 <- p10.1+p11.1-p10.2-p01.2+1
-    p1.upp7 <- -p10.1-p01.1+p10.2+p11.2+1
-    p1.upp8 <- p10.2+p11.2-p10.0-p01.0+1
-    p1.upp9 <- -p10.2-p01.2+p10.0+p11.0+1
-    p1.low <- max(p1.low1, p1.low2, p1.low3, p1.low4, p1.low5, p1.low6, p1.low7, 
-      p1.low8, p1.low9)
-    p1.upp <- min(p1.upp1, p1.upp2, p1.upp3, p1.upp4, p1.upp5, p1.upp6, p1.upp7, 
-      p1.upp8, p1.upp9)
+    if(monotonicity){
+      p0.low <- p10.0
+      p0.upp <- 1-p00.0
+      p1.low <- p11.2
+      p1.upp <- 1-p01.2  
+    }else{
+      p0.low1 <- p10.0
+      p0.low2 <- p10.1
+      p0.low3 <- p10.2
+      p0.low4 <- p10.0+p11.0+p10.1+p01.1-1
+      p0.low5 <- p10.0+p01.0+p10.1+p11.1-1
+      p0.low6 <- p10.1+p11.1+p10.2+p01.2-1
+      p0.low7 <- p10.1+p01.1+p10.2+p11.2-1      
+      p0.low8 <- p10.2+p11.2+p10.0+p01.0-1
+      p0.low9 <- p10.2+p01.2+p10.0+p11.0-1 
+      p0.upp1 <- 1-p00.0
+      p0.upp2 <- 1-p00.1
+      p0.upp3 <- 1-p00.2
+      p0.upp4 <- p10.0+p01.0+p10.1+p11.1
+      p0.upp5 <- p10.0+p11.0+p10.1+p01.1
+      p0.upp6 <- p10.1+p01.1+p10.2+p11.2
+      p0.upp7 <- p10.1+p11.1+p10.2+p01.2
+      p0.upp8 <- p10.2+p01.2+p10.0+p11.0
+      p0.upp9 <- p10.2+p11.2+p10.0+p01.0
+      p0.low <- max(p0.low1, p0.low2, p0.low3, p0.low4, p0.low5, p0.low6, 
+        p0.low7, p0.low8, p0.low9)
+      p0.upp <- min(p0.upp1, p0.upp2, p0.upp3, p0.upp4, p0.upp5, p0.upp6, 
+        p0.upp7, p0.upp8, p0.upp9)
+      p1.low1 <- p11.0
+      p1.low2 <- p11.1
+      p1.low3 <- p11.2
+      p1.low4 <- p10.0+p11.0-p10.1-p01.1
+      p1.low5 <- -p10.0-p01.0+p10.1+p11.1
+      p1.low6 <- p10.1+p11.1-p10.2-p01.2
+      p1.low7 <- -p10.1-p01.1+p10.2+p11.2
+      p1.low8 <- p10.2+p11.2-p10.0 -p01.0
+      p1.low9 <- -p10.2-p01.2+p10.0+p11.0
+      p1.upp1 <- 1-p01.0
+      p1.upp2 <- 1-p01.1
+      p1.upp3 <- 1-p01.2
+      p1.upp4 <- p10.0+p11.0-p10.1-p01.1+1
+      p1.upp5 <- -p10.0-p01.0+p10.1+p11.1+1
+      p1.upp6 <- p10.1+p11.1-p10.2-p01.2+1
+      p1.upp7 <- -p10.1-p01.1+p10.2+p11.2+1
+      p1.upp8 <- p10.2+p11.2-p10.0-p01.0+1
+      p1.upp9 <- -p10.2-p01.2+p10.0+p11.0+1
+      p1.low <- max(p1.low1, p1.low2, p1.low3, p1.low4, p1.low5, p1.low6, 
+        p1.low7, p1.low8, p1.low9)
+      p1.upp <- min(p1.upp1, p1.upp2, p1.upp3, p1.upp4, p1.upp5, p1.upp6, 
+        p1.upp7, p1.upp8, p1.upp9)
+    }   
   }
   p0 <- c(max(p0.low), min(p0.upp))
   p1 <- c(max(p1.low), min(p1.upp))  
   names(p0) <- (c("min", "max"))
   names(p1) <- (c("min", "max"))
+  
+  IVinequality <- TRUE
+  conditions <- NULL
+  if(length(zlev)==2)
+    temp <- cbind(c(0, 0, 1, 1), c(0, 1, 0, 1))
+  if(length(zlev)==3)
+    temp <- cbind(c(0, 0, 0, 1, 1, 1), c(0, 1, 2, 0, 1, 2))
+  for(x in xlev){
+    for(i in 1:nrow(temp)){
+      cond <- paste0("p", 0, x, ".", temp[i, 1], "+",
+        "p", 1, x, ".", temp[i, 2])  
+      cond <- paste0(cond, "<=1")
+      if(!eval(parse(text=cond))){
+        IVinequality <- FALSE
+        conditions <- c(conditions, cond)
+      }
+    }     
+  }
+  result <- list(call=call, p0=p0, p1=p1, IVinequality=IVinequality, 
+    conditions=conditions)
+  class(result) <- "ivbounds"
     
-  return(list(p0=p0, p1=p1))
+  return(result)
 
 }
 
-ivcoxph <- function(method, Z, X, T, fitZ=NULL, fitX=NULL, fitT, data, 
-  formula=~1, control=FALSE, clusterid=NULL, t=NULL){
+ivcoxph <- function(estmethod, Z, X, T, fitZ=NULL, fitX=NULL, fitT, data, 
+  formula=~1, ctrl=FALSE, clusterid=NULL, t=NULL, ...){
   
   call <- match.call()
   input <- as.list(environment())
   
-  if(method=="ts"){
-    result <- tsest(fitX=fitX, fitY=fitT, data=data, control=control, 
+  if(estmethod=="ts"){
+    result <- tsest(fitX=fitX, fitY=fitT, data=data, ctrl=ctrl, 
       clusterid=clusterid)
   }
-  if(method=="g"){
+  if(estmethod=="g"){
     type <- "coxph"
     result <- gest(Z=Z, X=X, Y=T, type=type, data=data, formula=formula, y=t,
-      fitY=fitT, fitZ=fitZ, clusterid=clusterid)
+      fitY=fitT, fitZ=fitZ, clusterid=clusterid, ...)
     result$t <- result$y
     result$y <- NULL
   }
@@ -530,17 +584,17 @@ ivcoxph <- function(method, Z, X, T, fitZ=NULL, fitX=NULL, fitT, data,
 
 }
 
-ivglm <- function(method, Z, X, Y, fitZ=NULL, fitX=NULL, fitY=NULL, data, 
-  formula=~1, control=FALSE, clusterid=NULL, link){
-  
+ivglm <- function(estmethod, Z, X, Y, fitZ=NULL, fitX=NULL, fitY=NULL, data, 
+  formula=~1, ctrl=FALSE, clusterid=NULL, link, ...){
+   
   call <- match.call()
   input <- as.list(environment())
   
-  if(method=="ts"){
-    result <- tsest(fitX=fitX, fitY=fitY, data=data, control=control, 
+  if(estmethod=="ts"){
+    result <- tsest(fitX=fitX, fitY=fitY, data=data, ctrl=ctrl, 
       clusterid=clusterid)
   }
-  if(method=="g"){
+  if(estmethod=="g"){
     if(link=="identity")
       type <- "identity"
     if(link=="log")
@@ -548,7 +602,7 @@ ivglm <- function(method, Z, X, Y, fitZ=NULL, fitX=NULL, fitY=NULL, data,
     if(link=="logit")
       type <- "logit"
     result <- gest(Z=Z, X=X, Y=Y, type=type, data=data, formula=formula,
-      fitY=fitY, fitZ=fitZ, clusterid=clusterid)
+      fitY=fitY, fitZ=fitZ, clusterid=clusterid, ...)
   }
   if(!result$converged)
     warning("No solution to the estimating equation was found")
@@ -557,6 +611,28 @@ ivglm <- function(method, Z, X, Y, fitZ=NULL, fitX=NULL, fitY=NULL, data,
   class(result) <- c("ivglm", "ivmod")
   return(result)
 
+}
+
+plot.estfun <- function(x, ...){
+  dots <- list(...)
+  args <- list(type="l")
+  args[names(dots)] <- dots
+  if(is.na(match("xlab", names(args))))
+    args$xlab <- expression(psi)
+  if(is.na(match("ylab", names(args))))
+    args$ylab <- expression(H(psi)) 
+  npar <- length(x$est)
+  nr <- ceiling(sqrt(npar))
+  nc <- ceiling(npar/nr)
+  par(mfrow=c(nr, nc), mar=c(4.2,5.5,2,0.5))
+  for(i in 1:npar){
+    args$x <- x$f[[i]][, 1]
+    args$y <- x$f[[i]][, 2] 
+    args$main <- names(x$est)[i]
+    do.call("plot", args=args)
+    abline(h=0, lty="dashed")
+    abline(v=x$est[i], lty="dashed")
+  }
 }
 
 plot.ivah <- function (x, gof=FALSE, CI.level=0.95, ...){
@@ -574,7 +650,7 @@ plot.ivah <- function (x, gof=FALSE, CI.level=0.95, ...){
     do.call("plot", args=args)   
     matlines(t(res[1, , drop=FALSE]), t(res[2:20, ]), col="grey", lty="solid")
     lines(res[1, ], res[2, ])
-    abline(0, 0)	
+    #abline(0, 0)	
   }
   else{
     qqq <- abs(qnorm((1-CI.level)/2))
@@ -590,11 +666,11 @@ plot.ivah <- function (x, gof=FALSE, CI.level=0.95, ...){
     if(is.na(match("xlab", names(args))))
       args["xlab"] <- "Time"
     if(is.na(match("ylab", names(args))))
-      args["ylab"] <- "Cumulative regression function"  
+      args$ylab <- expression(B(t)) 
     do.call("plot", args=args)
     lines(stime, u, lty="dashed")
     lines(stime, l, lty="dashed")
-    abline(0, 0)
+    #abline(0, 0)
     lines(stime, beta*stime)
   }
 }
@@ -613,6 +689,24 @@ print.ivmod <- function (x, digits=max(3L, getOption("digits")-3L), ...)
     }
 }
 
+print.summary.ivbounds <- function(x, digits=max(3L, getOption("digits")-3L), 
+   ...) {
+  cat("\nCall:  ", "\n", paste(deparse(x$call), sep="\n", collapse="\n"), 
+      "\n", sep="")
+  if(x$IVinequality){
+    cat("\nThe IV inequality is not violated\n\n")
+  }else{
+    cat("\nThe IV inequality is violated at the following conditions:\n")
+    for(i in length(x$conditions)){
+      print(x$conditions[i], quote=FALSE)
+      cat("  \n")
+    }
+  }
+  cat("Bounds:\n")
+  print(x$coefficients, digits)
+  cat("\n") 
+}
+
 print.summary.ivmod <- function(x, digits=max(3L, getOption("digits")-3L), 
   signif.stars=getOption("show.signif.stars"), ...) {
   cat("\nCall:  ", "\n", paste(deparse(x$call), sep="\n", collapse="\n"), 
@@ -624,7 +718,6 @@ print.summary.ivmod <- function(x, digits=max(3L, getOption("digits")-3L),
     cat("   \n")
     prmatrix(signif(x$test0, digits))
     cat("   \n")
-    cat("\n")
     cat("Goodness-of-fit test for constant effects model\n")
     prmatrix(signif(x$test_gof, digits))
     cat("   \n");  
@@ -665,7 +758,6 @@ scs <- function(Z, X, time, status, data, fitZ=NULL, max.time, max.time.beta, n.
   
   arvid1 <- data[, time] 
   arvid2 <- data[, X]
-  
   res.tmp <- B_est1(arvid1, status_new, stime, stime1, Z.c, arvid2,
     max.time.beta, eps.theta, E.dot, p.dim)
   eps <- res.tmp$eps_B
@@ -728,8 +820,30 @@ scs <- function(Z, X, time, status, data, fitZ=NULL, max.time, max.time.beta, n.
 
 }
 
+summary.ivbounds <- function(object, ...) {
+  p0min <- object$p0["min"]
+  p0max <- object$p0["max"]
+  p1min <- object$p1["min"]
+  p1max <- object$p1["max"]
+  CRDmin <- p1min-p0max
+  CRDmax <- p1max-p0min
+  CRRmin <- p1min/p0max
+  CRRmax <- p1max/p0min
+  CORmin <- p1min/(1-p1min)/(p0max/(1-p0max))
+  CORmax <- p1max/(1-p1max)/(p0min/(1-p0min))
+  lwr <- c(p0min, p1min, CRDmin, CRRmin, CORmin)
+  upr <- c(p0max, p1max, CRDmax, CRRmax, CORmax)
+  coef.table <- cbind(lwr, upr)
+  rownames(coef.table) <- c("p0", "p1", "CRD", "CRR", "COR")
+  colnames(coef.table) <- c("lower", "upper")
+  ans <- list(call=object$call, coefficients=coef.table, 
+    IVinequality=object$IVinequality, conditions=object$conditions)
+  class(ans) <- "summary.ivbounds"
+  return(ans)
+}
 
-summary.ivmod <- function(object, digits=max(3L, getOption("digits")-3L), ...) {
+
+summary.ivmod <- function(object, ...) {
   s.err <- sqrt(diag(as.matrix(object$vcov)))
   zvalue <- object$est/s.err
   pvalue <- 2*pnorm(-abs(zvalue))
@@ -738,7 +852,7 @@ summary.ivmod <- function(object, digits=max(3L, getOption("digits")-3L), ...) {
   dimnames(coef.table) <- list(names(object$est), c("Estimate", 
       "Std. Error", "z value", "Pr(>|z|)"))
   ans <- list(call=object$call, coefficients=coef.table, t=object$t)
-  if(class(object)[1]=="ivah" & object$input$method=="g"){
+  if(class(object)[1]=="ivah" & object$input$estmethod=="g"){
     test0 <- cbind(object$pval_0) 
     colnames(test0)  <- c("Supremum-test pval")
     rownames(test0)<- c(object$input$X) 
@@ -754,7 +868,7 @@ summary.ivmod <- function(object, digits=max(3L, getOption("digits")-3L), ...) {
 
 
 
-tsest <- function(fitX, fitY, data, control=FALSE, clusterid=NULL){
+tsest <- function(fitX, fitY, data, ctrl=FALSE, clusterid=NULL){
   
   #preliminaries
   n <- nrow(data)
@@ -774,7 +888,7 @@ tsest <- function(fitX, fitY, data, control=FALSE, clusterid=NULL){
   data.Xhat[, X] <- Xhat
   call <- fitY$call
   frml <- fitY$formula
-  if(control){
+  if(ctrl){
     data.Xhat[, "R"] <- resX
     call$formula <- update(frml, .~.+R)
   }
@@ -817,7 +931,7 @@ tsest <- function(fitX, fitY, data, control=FALSE, clusterid=NULL){
   UYfunc <- function(b){
     Xhat <- as.vector(family(fitX)$linkinv(designX%*%b)) 
     data.Xhat[, X]  <- Xhat
-    if(control)
+    if(ctrl)
       data.Xhat[, "R"] <- data[, X]-Xhat
     if(class(fitY)[1]=="glm"){
       designY <- expand(model.matrix(object=fitY$formula, data=data.Xhat), 
@@ -868,7 +982,7 @@ tsest <- function(fitX, fitY, data, control=FALSE, clusterid=NULL){
   else{
     converged <- TRUE
   }
-  result <- list(est=est, vcov=vcov, estfun=U, d.estfun=I, fitY=fitY, 
+  result <- list(est=est, vcov=vcov, estfunall=U, d.estfun=I, fitY=fitY, 
     converged=converged)
   class(result) <- "tsest"
 
