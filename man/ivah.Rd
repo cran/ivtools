@@ -16,8 +16,9 @@ these would typically be confounders for the instrument and the outcome.
 } 
 
 \usage{
-ivah(estmethod, Z, X, T, fitZ=NULL, fitX=NULL, fitT=NULL, data,  
-  ctrl=FALSE, clusterid=NULL, event, max.time, max.time.psi, n.sim=100, ...)
+ivah(estmethod, X, T, fitZ.L=NULL, fitX.LZ=NULL, fitT.LX=NULL, data,  
+  ctrl=FALSE, clusterid=NULL, event, max.time, max.time.psi, n.sim=100, 
+  vcov.fit=TRUE, ...)
 }
 
 \arguments{
@@ -25,32 +26,28 @@ ivah(estmethod, Z, X, T, fitZ=NULL, fitX=NULL, fitT=NULL, data,
 a string specifying the desired estimation method; either \code{"ts"} for two-stage
 estimation, or \code{"g"} for G-estimation. 
 }
-\item{Z}{
-a string specifying the name of the instrument \eqn{Z} in \code{data}. This argument
-is not used when \code{estmethod="ts"}. 
-}
   \item{X}{
-a string specifying the name of the exposure \eqn{X} in \code{data}. This argument
-is not used when \code{estmethod="ts"}.
+a string specifying the name of the exposure \eqn{X} in \code{data}. This is not needed if 
+\code{fitX.LZ} is specified.
 }
   \item{T}{
-a string specifying the name of the follow-up time \eqn{T} in \code{data}. This argument
-is not used when \code{estmethod="ts"}.
+a string specifying the name of the follow-up time \eqn{T} in \code{data}. This is not needed if 
+\code{fitT.LZ} is specified.
 }
-  \item{fitZ}{
+  \item{fitZ.L}{
 an object of class \code{"glm"}, as returned by the \code{glm} function 
-in the \code{stats} package. This is a fitted GLM for \eqn{E(Z|L)}. This argument
-is not used when \code{estmethod="ts"}. It is not required when \code{estmethod="g"}
-and covariates are absent. 
+in the \pkg{stats} package. This is a fitted GLM for \eqn{E(Z|L)}. If there are no covariates,
+then \code{fitZ.L} may be specified as a model with an intercept only. This argument
+is not used when \code{estmethod="ts"}. 
 }
-\item{fitX}{
+\item{fitX.LZ}{
 an object of class \code{"glm"}, as returned by the \code{glm} function 
-  in the \code{stats} package. This is a fitted GLM for \eqn{E(X|L,Z)}. This argument
+  in the \pkg{stats} package. This is a fitted GLM for \eqn{E(X|L,Z)}. This argument
 is not used when \code{estmethod="g"}. 
 }
- \item{fitT}{
+ \item{fitT.LX}{
 If \code{estmethod="ts"}, then this is an object of class \code{"ah"}, as 
-  returned by the \code{ah} function in the \code{ivtools} package. 
+  returned by the \code{ah} function in the \pkg{ivtools} package. 
   In this case it is a fitted AH model for \eqn{\lambda(t|L,X)}. 
   This argument is not used when \code{estmethod="g"}.  
 } 
@@ -89,6 +86,9 @@ This argument is not used when \code{estmethod="ts"}.
 optional number of resamplings for testing goodness-of-fit of constant effects model
 for G-estimation. Defaults to 100. This argument is not used when \code{estmethod="ts"}.  
 }
+ \item{vcov.fit}{
+ logical. Should the variance-covariance matrix be computed? 
+}
   \item{...}{
   optional arguments passed on to the \code{nleqslv} function, which is used to 
   solve the estimating equations when \code{estmethod="g"}. See the help pages 
@@ -105,11 +105,11 @@ The \code{ivah} estimates different parameters, depending on whether
 Here, \eqn{\lambda_0(t|L,Z,X)} is counterfactual hazard function,
 had the exposure been set to 0. The vector function \eqn{m(L)} contains interaction terms
  between \eqn{L} and \eqn{X}. These are specified 
- implicitly through the model \code{fitY}. The model \code{fitX} is used to 
+ implicitly through the model \code{fitY}. The model \code{fitX.LZ} is used to 
  construct predictions \eqn{\hat{X}=\hat{E}(X|L,Z)}. These predictions are 
  subsequently used to re-fit the model \code{fitY}, with \eqn{X} replaced with 
  \eqn{\hat{X}}. The obtained coefficient(s) for \eqn{X} is the two-stage 
- estimator \eqn{\hat{\psi}}.  
+ estimator of \eqn{\psi}.  
  
 If \code{estmethod="g"}, then \code{ivah} uses G-estimation to estimate the function 
 \eqn{B(t)} in the causal AH model
@@ -134,12 +134,19 @@ class \code{"ivmod"}. An object of class \code{"ivah"} is a list containing
   the variance-covariance matrix for the estimate of \eqn{\psi}, 
 obtained with the sandwich formula. 
   }
+\item{estfunall}{
+  a matrix of all subject-specific contributions to the estimating functions used in the estimation process.
+One row for each subject, one column for each parameter. If \code{estmethod="ts"},
+then the first columns correspond to the parameters estimated by \code{fitX.LZ}, and
+the last columns correspond to the parameters estimated by the re-fitted model 
+\code{fitY}. If \code{estmethod="g"}, then \code{estfunall} is NULL. 
+  }
+\item{d.estfun}{
+  the jacobian matrix of \code{colMeans(estfun)}. If \code{estmethod="g"}, 
+    then \code{d.estfun} is NULL.    
+  }
 \item{converged}{
   logical. Was a solution found to the estimating equations?   
-}
-\item{fitZ}{
-  the model \code{fitZ} used in the estimation process when \code{estmethod="g"}.
-  This element is NULL when \code{estmethod="ts"}. 
 }
 \item{fitY}{
   the re-fitted model \code{fitY} used in the estimation process when \code{estmethod="ts"}.
@@ -203,7 +210,7 @@ Arvid Sjolander and Torben Martinussen.
 through the input models. Thus, when models are used as input to \code{ivah}, 
 these models have to be fitted with the same weights.
 
-Left-truncation and correction of standard errors for clustered data are currerntly not
+Left-truncation and correction of standard errors for clustered data are currently not
 implemented when \code{estmethod="g"}.     
 }
 
@@ -230,15 +237,16 @@ data <- data.frame(L, Z, X, T, d)
 data$T <- data$T+rnorm(n=nrow(data), sd=0.001)
 
 #two-stage estimation
-fitX <- glm(formula=X~Z+L, data=data)
-fitT <- ah(formula=Surv(T, d)~X+L+X*L, data=data)
-fitIV <- ivah(estmethod="ts", fitX=fitX, fitT=fitT, data=data, ctrl=TRUE)
+fitX.LZ <- glm(formula=X~Z+L, data=data)
+fitT.LX <- ah(formula=Surv(T, d)~X+L+X*L, data=data)
+fitIV <- ivah(estmethod="ts", fitX.LZ=fitX.LZ, fitT.LX=fitT.LX, data=data, 
+  ctrl=TRUE)
 summary(fitIV)
 
 #G-estimation
-fitZ <- glm(formula=Z~L, family="binomial", data=data)
-fitIV <- ivah(estmethod="g", Z="Z", X="X", T="T", fitZ=fitZ, data=data,  
-          event="d", max.time=4, max.time.psi=4, n.sim=100)
+fitZ.L <- glm(formula=Z~L, family="binomial", data=data)
+fitIV <- ivah(estmethod="g", X="X", T="T", fitZ.L=fitZ.L, data=data,  
+  event="d", max.time=4, max.time.psi=4, n.sim=100)
 summary(fitIV)
 plot(fitIV)
 

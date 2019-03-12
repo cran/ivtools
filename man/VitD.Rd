@@ -20,9 +20,9 @@
 data(VitD)
 }
 \description{
-This dataset originates from a real cohort study on Viatmin D and mortailty,
+This dataset originates from a real cohort study on Vitamin D and mortailty,
 described by Martinussen et al (2017). However, to allow public availability 
-the data were slightly mutialted before inclusion in the 
+the data were slightly mutilated before inclusion in the 
 \code{ivtools} package.    
 }
 

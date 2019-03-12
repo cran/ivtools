@@ -76,11 +76,21 @@ An object of class \code{"ivbounds"} is a list containing
   }
 \item{p0}{
   a named vector with elements \code{"min"} and \code{"max"}, containing the 
-  lower and upper bounds for \eqn{p(Y_0=1)}, respectively. 
+  evaluated lower and upper bounds for \eqn{p(Y_0=1)}, respectively. 
   }
 \item{p1}{
   a named vector with elements \code{"min"} and \code{"max"}, containing the 
-  lower and upper bounds for \eqn{p(Y_1=1)}, respectively. 
+  evaluated lower and upper bounds for \eqn{p(Y_1=1)}, respectively. 
+  }
+\item{p0.symbolic}{
+  a named vector with elements \code{"min"} and \code{"max"}, containing the 
+  lower and upper bounds for \eqn{p(Y_0=1)}, respectively, on a symbolic form
+  (i.e. as strings). 
+  }
+\item{p1.symbolic}{
+  a named vector with elements \code{"min"} and \code{"max"}, containing the 
+  lower and upper bounds for \eqn{p(Y_1=1)}, respectively, on a symbolic form
+  (i.e. as strings). 
   }
   \item{IVinequality}{
   logical. Does the IV inequality hold?  

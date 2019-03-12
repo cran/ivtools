@@ -4,7 +4,7 @@ importFrom(Rcpp, evalCpp)
 
 importFrom(stats, "family", "fitted", "formula", "glm", "model.frame", "model.matrix", 
   "pchisq", "plogis", "pnorm", "predict", "printCoefmat", "optimize", "qnorm", "rbinom", 
-  "residuals", "rnorm", "stepfun", "update", "var", "weighted.mean")
+  "residuals", "rnorm", "stepfun", "update", "var", "vcov", "weighted.mean")
 importFrom(data.table, "data.table")
 importFrom(numDeriv, "jacobian")
 importFrom(nleqslv, "nleqslv")

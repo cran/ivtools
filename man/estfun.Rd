@@ -99,8 +99,8 @@ Y <- rnorm(n, mean=psi0*X+psi1*X*L+m0)
 data <- data.frame(L, Z, X, Y)
 
 #G-estimation
-fitZ <- glm(formula=Z~L, data=data)
-fitIV <- ivglm(estmethod="g", Z="Z", X="X", Y="Y", fitZ=fitZ, data=data, 
+fitZ.L <- glm(formula=Z~L, data=data)
+fitIV <- ivglm(estmethod="g", X="X", Y="Y", fitZ.L=fitZ.L, data=data, 
   formula=~L, link="identity")
 summary(fitIV)
 H <- estfun(fitIV)
@@ -115,8 +115,10 @@ Y <- rbinom(n, 1, plogis(psi0*X+log(m0/(1-m0))))
 data <- data.frame(Z, X, Y)
 
 #G-estimation
-fitY <- glm(formula=Y~X+Z+X*Z, family="binomial", data=data)
-fitIV <- ivglm(estmethod="g", Z="Z", X="X", Y="Y", fitY=fitY, data=data, link="logit")
+fitZ.L <- glm(formula=Z~1, data=data)
+fitY.LZX <- glm(formula=Y~X+Z+X*Z, family="binomial", data=data)
+fitIV <- ivglm(estmethod="g", X="X", fitZ.L=fitZ.L, fitY.LZX=fitY.LZX, 
+  data=data, link="logit")
 summary(fitIV)
 H <- estfun(fitIV)
 plot(H)

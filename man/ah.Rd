@@ -7,7 +7,7 @@ Fitting semiparametric additive hazards regression models.
 }
 
 \description{
-\code{ah} is a wrapper around the \code{ahaz} function in the \code{ahaz}
+\code{ah} is a wrapper around the \code{ahaz} function in the \pkg{ahaz}
 package, with a more user-friendly and standard interface. Refer to the 
 manual for \code{ahaz} for details. 
 }     

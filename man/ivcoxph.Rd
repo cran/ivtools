@@ -16,8 +16,9 @@ these would typically be confounders for the instrument and the outcome.
 } 
 
 \usage{
-ivcoxph(estmethod, Z, X, T, fitZ=NULL, fitX=NULL, fitT, data, 
-  formula=~1, ctrl=FALSE, clusterid=NULL, t=NULL, ...)
+ivcoxph(estmethod, X, fitZ.L=NULL, fitX.LZ=NULL, fitX.L=NULL, fitT.LX=NULL, 
+  fitT.LZX=NULL, data, formula=~1, ctrl=FALSE, clusterid=NULL, t=NULL, 
+  vcov.fit=TRUE, ...)
 }
 
 \arguments{
@@ -25,38 +26,38 @@ ivcoxph(estmethod, Z, X, T, fitZ=NULL, fitX=NULL, fitT, data,
 a string specifying the desired estimation method; either \code{"ts"} for two-stage
 estimation, or \code{"g"} for G-estimation. 
 }
-\item{Z}{
-a string specifying the name of the instrument \eqn{Z} in \code{data}. This argument
+  \item{X}{
+a string specifying the name of the exposure \eqn{X} in \code{data}. This 
+is not needed if \code{fitX.LZ} is specified. 
+}
+  \item{fitZ.L}{
+an object of class \code{"glm"}, as returned by the \code{glm} function 
+in the \pkg{stats} package. This is a fitted GLM for \eqn{E(Z|L)}. If there are no covariates,
+then \code{fitZ.L} may be specified as a model with an intercept only. This argument
 is not used when \code{estmethod="ts"}. 
 }
-  \item{X}{
-a string specifying the name of the exposure \eqn{X} in \code{data}. This argument
-is not used when \code{estmethod="ts"}.
-}
-  \item{T}{
-a string specifying the name of the follow-up time \eqn{T} in \code{data}. This argument
-is not used when \code{estmethod="ts"}.
-}
-  \item{fitZ}{
+\item{fitX.LZ}{
 an object of class \code{"glm"}, as returned by the \code{glm} function 
-in the \code{stats} package. This is a fitted GLM for \eqn{E(Z|L)}. This argument
-is not used when \code{estmethod="ts"}. It is not required when \code{estmethod="g"}
-and covariates are absent. 
+  in the \pkg{stats} package. This is a fitted GLM for \eqn{E(X|L,Z)}. 
 }
-\item{fitX}{
+\item{fitX.L}{
 an object of class \code{"glm"}, as returned by the \code{glm} function 
-  in the \code{stats} package. This is a fitted GLM for \eqn{E(X|L,Z)}. This argument
-is not used when \code{estmethod="g"}. 
+  in the \pkg{stats} package. This is a fitted GLM for \eqn{E(X|L)}. If there are no covariates,
+then \code{fitX.L} may be specified as a model with an intercept only. This argument
+is not used when \code{estmethod="ts"}. 
 }
- \item{fitT}{
-If \code{estmethod="ts"}, then this is an object of class \code{"coxph"}, as 
-  returned by the \code{coxph} function in the \code{survival} package. 
-  In this case it is a fitted Cox PH model for \eqn{\lambda(t|L,X)}. 
-  If \code{estmethod="g"}, then this is either an object of class \code{"coxph"} 
+ \item{fitT.LX}{
+an object of class \code{"coxph"}, as 
+  returned by the \code{coxph} function in the \pkg{survival} package. 
+  This is a fitted Cox PH model for \eqn{\lambda(t|L,X)}. 
+  This argument is not used when \code{estmethod="g"}.  
+} 
+\item{fitT.LZX}{
+either an object of class \code{"coxph"} 
   or an object of class \code{"survfit"}, as returned by the \code{coxph} function 
-  in the \code{survival} package. In this case it is a fitted Cox PH model for 
+  in the \pkg{survival} package. This is a fitted Cox PH model for 
   \eqn{\lambda(t|L,Z,X)} or a non-parametric model for \eqn{S(t|L,Z,X)},
-  respectively.  
+  respectively. This argument is not used when \code{estmethod="ts"}.  
 } 
   \item{data}{
 a data frame containing the variables in the model. The covariates, instrument,
@@ -70,7 +71,7 @@ main effect only. This argument is not used when \code{estmethod="ts"}.
 }
   \item{ctrl}{
 logical. Should the control function \eqn{R=X-\hat{X}} be used when re-fitting 
-\code{fitY}? This argument is not used when \code{estmethod="g"}.   
+\code{fitT.LX}? This argument is not used when \code{estmethod="g"}.   
 }
   \item{clusterid}{
 an optional string containing the name of a cluster identification variable when 
@@ -79,11 +80,14 @@ but does not affect the estimates.
 }
  \item{t}{
  a numeric scalar specifying the time point at which to solve the estimating 
-equation when \code{estmethod="g"}; see `Details'. This argument is not used when
-\code{estmethod="ts"}. If not supplied, then the estimating equation is solved 
+equation when \code{estmethod="g"}; see `Details'. If not specified, then the estimating equation is solved 
 at the optimal value of \code{t}, defined as the value that 
 minimizes \eqn{trace\{var(\hat{\psi})\}}; see Martinussen et al (2017).
+This argument is not used when \code{estmethod="ts"}. 
   }
+ \item{vcov.fit}{
+ logical. Should the variance-covariance matrix be computed?  
+}
   \item{...}{
   optional arguments passed on to the \code{nleqslv} function, which is used to 
   solve the estimating equations when \code{estmethod="g"}. See the help pages 
@@ -98,23 +102,30 @@ minimizes \eqn{trace\{var(\hat{\psi})\}}; see Martinussen et al (2017).
 Here, \eqn{\lambda_0(t|L,Z,X)} is counterfactual hazard function,
 had the exposure been set to 0. The vector function \eqn{m(L)} contains interaction terms
  between \eqn{L} and \eqn{X}. If \code{estmethod="ts"}, then these are specified 
- implicitly through the model \code{fitY}. If \code{estmethod="g"}, then these     
+ implicitly through the model \code{fitT.LX}. If \code{estmethod="g"}, then these     
  are specified explicitly through the \code{formula} argument.
  
 If \code{estmethod="ts"}, then two-stage estimation of \eqn{\psi} is performed.
-In this case, the model \code{fitX} is used to construct predictions
+In this case, the model \code{fitX.LZ} is used to construct predictions
 \eqn{\hat{X}=\hat{E}(X|L,Z)}. These predictions are subsequently used to re-fit 
-the model \code{fitY}, with \eqn{X} replaced with \eqn{\hat{X}}. The obtained 
-coefficient(s) for \eqn{X} is the two-stage estimator \eqn{\hat{\psi}}. 
+the model \code{fitT.LX}, with \eqn{X} replaced with \eqn{\hat{X}}. The obtained 
+coefficient(s) for \eqn{\hat{X}} in the re-fitted model is the two-stage estimator of \eqn{\psi}. 
 
 If \code{estmethod="g"}, then G-estimation of \eqn{\psi} is performed. In this case,
 the estimator is obtained as the solution to the estimating equation
-\deqn{H(\psi)=\sum_{i=1}^nm(L_i)\{Z_i-\hat{E}(Z|L_i)\}h_i(\psi;t)=0,}
+\deqn{H(\psi)=\sum_{i=1}^n\hat{d}(L_i,Z_i)h_i(\psi;t)=0,}
 where
 \deqn{h_i(\psi;t)=\hat{S}(t|L_i,Z_i,X_i)^{\textrm{exp}\{-m^T(L_i)\psi X_i\}}.}
-The equation is solved at the value of \eqn{t} specified by the argument \code{t}.
+The estimated function \eqn{\hat{d}(L,Z)} is chosen so that the true function
+has conditional mean 0, given \eqn{L}; \eqn{E\{d(L,Z)|L\}=0}. 
+The specific form of \eqn{\hat{d}(L,Z)} is determined by the user-specified models. 
+If \code{fitX.LZ} and \code{fitX.L} are specified, then \eqn{\hat{d}(L,Z)=m(L)\{\hat{E}(X|L,Z)-\hat{E}(X|L)\}}, 
+where \eqn{\hat{E}(X|L,Z)} and \eqn{\hat{E}(X|L)} are obtained from \code{fitX.LZ}
+and \code{fitX.L}, respectively. If these are not specified, then \eqn{\hat{d}(L,Z)=m(L)\{Z-\hat{E}(Z|L)\}}, 
+where \eqn{\hat{E}(Z|L)} is obtained from \code{fitZ.L}, which then must be specified. 
+The estimating equation is solved at the value of \eqn{t} specified by the argument \code{t}.
 \eqn{\hat{S}(t|L_i,Z_i,X_i)} is an estimate of \eqn{S(t|L_i,Z_i,X_i)} obtained 
-from the model \code{fitY}. 
+from the model \code{fitT.LZX}. 
  
 }
 
@@ -137,24 +148,21 @@ obtained with the sandwich formula.
 \item{estfunall}{
   a matrix of all subject-specific contributions to the estimating functions used in the estimation process.
 One row for each subject, one column for each parameter. If \code{estmethod="ts"},
-then the first columns correspond to the parameters estimated by \code{fitX}, and
+then the first columns correspond to the parameters estimated by \code{fitX.LZ}, and
 the last columns correspond to the parameters estimated by the re-fitted model 
-\code{fitY}. If \code{estmethod="g"}, then the first columns correspond to \eqn{\psi}, 
-and the remaining columns correspond to the parameters estimated by \code{fitZ} and 
-\code{fitY}.    
+\code{fitT.LX}. If \code{estmethod="g"}, then the first columns correspond to \eqn{\psi}, 
+and the remaining columns correspond the parameters estimated by \code{fitZ.L},
+\code{fitX.LZ}, \code{fitX.L} and \code{fitT.LZX}, whichever were used in the
+estimation process.
   }
 \item{d.estfun}{
-  the jacobian matrix of \code{colSums(estfun)}.    
+  the jacobian matrix of \code{colMeans(estfunall)}.    
   }
 \item{converged}{
   logical. Was a solution found to the estimating equations?   
 }
-\item{fitZ}{
-  the model \code{fitZ} used in the estimation process when \code{estmethod="g"}.
-  This element is NULL when \code{estmethod="ts"}. 
-}
-\item{fitY}{
-  the re-fitted model \code{fitY} used in the estimation process when \code{estmethod="ts"}.
+\item{fitT.LX}{
+  the re-fitted model \code{fitT.LX} used in the estimation process when \code{estmethod="ts"}.
   This element is NULL when \code{estmethod="g"}.  
 }
 \item{t}{
@@ -180,10 +188,12 @@ Arvid Sjolander.
 }
 
 \note{
-\code{ivglm} allows for weights. However, these are defined implicitly 
-through the input models. Thus, when models are used as input to \code{ivglm}, 
+\code{ivcoxph} allows for weights. However, these are defined implicitly 
+through the input models. Thus, when models are used as input to \code{ivcoxph}, 
 these models have to be fitted with the same weights. When \code{estmethod="g"}
-the weights are taken from \code{fitZ}, so this must be specified.   
+the weights are taken from \code{fitX.LZ}, if specified by the user. If \code{fitX.LZ} is not
+specified then the weights are taken from \code{fitZ.L}. Hence, if weights are used,
+then either \code{fitX.LZ} or \code{fitZ.L} must be specified.   
 }
 
 \examples{
@@ -207,19 +217,24 @@ T <- pmin(T, C)
 data <- data.frame(Z, X, T, d)
 
 #two-stage estimation
-fitX <- glm(formula=X~Z, data=data)
-fitT <- coxph(formula=Surv(T, d)~X, data=data)
-fitIV <- ivcoxph(estmethod="ts", fitX=fitX, fitT=fitT, data=data, ctrl=TRUE)
+fitX.LZ <- glm(formula=X~Z, data=data)
+fitT.LX <- coxph(formula=Surv(T, d)~X, data=data)
+fitIV <- ivcoxph(estmethod="ts", fitX.LZ=fitX.LZ, fitT.LX=fitT.LX, data=data, 
+  ctrl=TRUE)
 summary(fitIV)
 
-#G-estimation with non-parametric model for S(t|L,Z,X)
-fitT <- survfit(Surv(T, d)~X+Z, data=data)
-fitIV <- ivcoxph(estmethod="g", Z="Z", X="X", T="T", fitT=fitT, data=data, t=1)
+#G-estimation with non-parametric model for S(t|L,Z,X) and model for Z
+fitZ.L <- glm(formula=Z~1, data=data)
+fitT.LZX <- survfit(Surv(T, d)~X+Z, data=data)
+fitIV <- ivcoxph(estmethod="g", X="X", fitZ.L=fitZ.L, fitT.LZX=fitT.LZX, 
+  data=data, t=1)
 summary(fitIV)
 
-#G-estimation with Cox model for \lambda(t|L,Z,X)
-fitT <- coxph(Surv(T, d)~X+X+X*Z, data=data)
-fitIV <- ivcoxph(estmethod="g", Z="Z", X="X", T="T", fitT=fitT, data=data, t=1)
+#G-estimation with Cox model for \lambda(t|L,Z,X) and model for Z
+fitZ.L <- glm(formula=Z~1, data=data)
+fitT.LZX <- coxph(Surv(T, d)~X+X+X*Z, data=data)
+fitIV <- ivcoxph(estmethod="g", X="X", fitZ.L=fitZ.L, fitT.LZX=fitT.LZX, 
+  data=data, t=1)
 summary(fitIV)
 
 }
