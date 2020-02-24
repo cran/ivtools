@@ -121,7 +121,7 @@ The function \eqn{h_i(\psi)} is defined as
 when \code{link="identity"},
 \deqn{h_i(\psi)=Y_i\textrm{exp}\{-m^T(L_i)\psi X_i\}}
 when \code{link="log"}, and
-\deqn{h_i(\psi)=\textrm{expit}\{\hat{E}(Y|L_i,Z_i,X_i)-m^T(L_i)\psi X_i\}}
+\deqn{h_i(\psi)=\textrm{expit}[\textrm{logit}\{\hat{E}(Y|L_i,Z_i,X_i)\}-m^T(L_i)\psi X_i]}
 when \code{link="logit"}. In the latter, \eqn{\hat{E}(Y|L_i,Z_i,X_i)} is
 an estimate of \eqn{E(Y|L_i,Z_i,X_i)} obtained from the model \code{fitY.LZX}.
 The estimated function \eqn{\hat{d}(L,Z)} is chosen so that the true function
@@ -176,6 +176,9 @@ estimation process.
 Bowden J., Vansteelandt S. (2011). Mendelian randomization analysis of
 case-control data using structural mean models. \emph{Statistics in Medicine}
 \bold{30}(6), 678-694.
+
+Sjolander A., Martinussen T. (2019). Instrumental variable estimation with the R package ivtools.
+\emph{Epidemiologic Methods} \bold{8}(1), 1-20.
  
 Vansteelandt S., Bowden J., Babanezhad M., Goetghebeur E. (2011). 
 On instrumental variables estimation of causal odds ratios.

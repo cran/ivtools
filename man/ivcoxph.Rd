@@ -174,12 +174,15 @@ estimation process.
 
 \references{
 
-Martinussen T., Sorensen D.D., Vansteelandt S. (2017). 
+Martinussen T., Sorensen D.D., Vansteelandt S. (2019). 
 Instrumental variables estimation under a structural Cox model.
-\emph{Biostatistics} <doi:10.1093/biostatistics/kxx057>.
+\emph{Biostatistics} \bold{20}(1), 65-79.
+
+Sjolander A., Martinussen T. (2019). Instrumental variable estimation with the R package ivtools.
+\emph{Epidemiologic Methods} \bold{8}(1), 1-20.
 
 Tchetgen Tchetgen E.J., Walter S., Vansteelandt S., Martinussen T., Glymour M. (2015).
-Instrumental variable estimation in a survival context. \emph{Epidemiology} \bold{26}(3): 402-410. 
+Instrumental variable estimation in a survival context. \emph{Epidemiology} \bold{26}(3), 402-410. 
 
 }
 
@@ -225,14 +228,14 @@ summary(fitIV)
 
 #G-estimation with non-parametric model for S(t|L,Z,X) and model for Z
 fitZ.L <- glm(formula=Z~1, data=data)
-fitT.LZX <- survfit(Surv(T, d)~X+Z, data=data)
+fitT.LZX <- survfit(formula=Surv(T, d)~X+Z, data=data)
 fitIV <- ivcoxph(estmethod="g", X="X", fitZ.L=fitZ.L, fitT.LZX=fitT.LZX, 
   data=data, t=1)
 summary(fitIV)
 
 #G-estimation with Cox model for \lambda(t|L,Z,X) and model for Z
 fitZ.L <- glm(formula=Z~1, data=data)
-fitT.LZX <- coxph(Surv(T, d)~X+X+X*Z, data=data)
+fitT.LZX <- coxph(formula=Surv(T, d)~X+X+X*Z, data=data)
 fitIV <- ivcoxph(estmethod="g", X="X", fitZ.L=fitZ.L, fitT.LZX=fitT.LZX, 
   data=data, t=1)
 summary(fitIV)

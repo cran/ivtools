@@ -103,6 +103,10 @@ An object of class \code{"ivbounds"} is a list containing
 \references{
 Balke, A. and Pearl, J. (1997). \emph{Bounds on treatment effects from studies with imperfect compliance}.
 \emph{Journal of the American Statistical Association} \bold{92}(439), 1171-1176. 
+
+Sjolander A., Martinussen T. (2019). Instrumental variable estimation with the R package ivtools.
+\emph{Epidemiologic Methods} \bold{8}(1), 1-20.
+
 }
 
 \author{

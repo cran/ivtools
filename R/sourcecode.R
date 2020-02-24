@@ -25,7 +25,7 @@ ah <- function(formula, data, weights, robust=FALSE){
   X <- model.matrix(object=formula, data=data)[, -1, drop=FALSE]
   fit <- ahaz(surv=surv, X=X, weights=weights, robust=robust)
   fit$call <- match.call()
-  fit$formula <- formula
+  fit$formula <- eval(formula)
   coef <- solve(fit$D, fit$d)
   coeff.names <- colnames(X)
   names(coef) <- coeff.names
@@ -53,60 +53,6 @@ confint.ivmod <- function(object, parm, level=0.95, ...){
   
 }
 
-#computes estimating function for each subject
-Upsifun <- function(b, Z, X, Y, type, fitZ.L, fitX.LZ, fitX.L, fitY.LZX, 
-  npsi, nZ, nX.LZ, nX.L, nY, designpsi, designZ, designX.LZ, designX.L, designY, 
-  weights, data){
-
-  n <- nrow(data)
-  psi <- b[1:npsi]
-  g <- designpsi*data[, X]
-  lppsi <- as.vector(g%*%psi)
-  if(is.null(fitX.LZ)){
-    nd <- nZ
-  }else{
-    nd <- nX.LZ+nX.L  
-  }
-  if(type=="identity")
-    Y0hat <- data[, Y]-lppsi
-  if(type=="log")
-    Y0hat <- data[, Y]*exp(-lppsi)
-  if(type=="logit"){
-    bY <- b[(npsi+nd+1):(npsi+nd+nY)]
-    lpY <- as.vector(designY%*%bY)
-    Y0hat <- plogis(lpY-lppsi)  
-  }
-  if(type=="coxph"){
-    if(class(fitY.LZX)[1]=="survfit"){
-        H <- b[(npsi+nd+1):(npsi+nd+nY)]
-        vars <- all.vars(fitY.LZX$call$formula[[3]])
-        strata.all <- strata(data[, vars, drop=FALSE])
-        Y0hat <- exp(-H[strata.all]*exp(-lppsi))  
-      }
-    if(class(fitY.LZX)[1]=="coxph"){
-      bY <- b[(npsi+nd+1):(npsi+nd+nY-1)]
-      H0 <- b[npsi+nd+nY]
-      lpY <- as.vector(designY%*%bY)  
-      Y0hat <- exp(-H0*exp(lpY-lppsi))
-    }
-  }
-  if(is.null(fitX.LZ)){
-    bZ <- b[(npsi+1):(npsi+nZ)]
-    d <- designpsi*(data[, Z]-as.vector(family(fitZ.L)$linkinv(designZ%*%bZ)))     
-  }else{
-    bX.LZ <- b[(npsi+1):(npsi+nX.LZ)]
-    bX.L <- b[(npsi+nX.LZ+1):(npsi+nX.LZ+nX.L)] 
-    d <- designpsi*(as.vector(family(fitX.LZ)$linkinv(designX.LZ%*%bX.LZ))-
-      as.vector(family(fitX.L)$linkinv(designX.L%*%bX.L)))      
-  } 
-  Upsi <- weights*d*Y0hat
-  Upsi[is.na(Upsi)] <- 0
-  colnames(Upsi) <- names(psi)
-
-  return(Upsi)
-  
-}
-
 estfun <- function(object, lower, upper, step){
  
   #extract stuff from fitted gest object 
@@ -124,15 +70,16 @@ estfun <- function(object, lower, upper, step){
     X <- all.vars(fitX.LZ$formula)[1]    
   }
   Y <- input$Y
-  if(class(object)[1]=="ivglm"){
+  if(inherits(x=object, what="ivglm")){
     type <- input$link
     fitY.LZX <- input$fitY.LZX
   }
-  if(class(object)[1]=="ivcoxph"){
+  if(inherits(x=object, what="ivcoxph")){
     type <- "coxph"
     fitY.LZX <- input$fitT.LZX
+    fit.detail <- coxph.detail(object=fitY.LZX)
   }
-  if(class(object)[1]=="ivah")
+  if(inherits(x=object, what="ivah"))
     stop("estfun is not implemented for ivah objects.")
   formula <- input$formula
   y <- object$t
@@ -140,7 +87,7 @@ estfun <- function(object, lower, upper, step){
   #collect useful stuff  
   stuff <- utilityfun(Z=Z, X=X, Y=Y, type=type, data=data, 
     formula=formula, y=y, fitY.LZX=fitY.LZX, fitX.LZ=fitX.LZ, fitX.L=fitX.L, 
-    fitZ.L=fitZ.L)
+    fitZ.L=fitZ.L, fit.detail=fit.detail)
   est.nuisance <- stuff$est.nuisance
   nZ <- stuff$nZ
   nX.LZ <- stuff$nX.LZ
@@ -199,7 +146,8 @@ expand <- function(x, names){
 } 
 
 gest <- function(Z, X, Y, type, data, formula=~1, y=NULL, fitY.LZX=NULL, 
-  fitX.LZ=NULL, fitX.L=NULL, fitZ.L=NULL, clusterid=NULL, vcov.fit=vcov.fit, ...){
+  fitX.LZ=NULL, fitX.L=NULL, fitZ.L=NULL, clusterid=NULL, vcov.fit=vcov.fit, 
+  fit.detail=NULL, ...){
   
   dots <- list(...)
   n <- nrow(data) 
@@ -209,21 +157,21 @@ gest <- function(Z, X, Y, type, data, formula=~1, y=NULL, fitY.LZX=NULL,
     f <- function(y){
       fit <- gest(Z=Z, X=X, Y=Y, type="coxph", formula=formula, y=y, 
         fitY.LZX=fitY.LZX, fitX.LZ=fitX.LZ, fitX.L=fitX.L, fitZ.L=fitZ.L, 
-        data=data, clusterid=clusterid, vcov.fit=vcov.fit, ...)
+        data=data, clusterid=clusterid, vcov.fit=vcov.fit, 
+        fit.detail=fit.detail, ...)
       return(sum(diag(fit$vcov)))
     }
-    if(class(fitY.LZX)[1]=="survfit"){
+    if(inherits(x=fitY.LZX, what="survfit")){
       ss <- summary(fitY.LZX)
       time <- ss$time
     }
-    if(class(fitY.LZX)[1]=="coxph"){
-      fitY.LZX.detail <- coxph.detail(object=fitY.LZX)
-      time <- fitY.LZX.detail$time
+    if(inherits(x=fitY.LZX, what="coxph")){
+      time <- fit.detail$time
     }
     interval <- c(min(time), max(time))
     y <- optimize(f=f, interval=interval)$minimum  
   }
-  
+ 
   #number of clusters?
   if(!is.null(clusterid))
     ncluster <- length(unique(data[, clusterid]))   
@@ -231,7 +179,7 @@ gest <- function(Z, X, Y, type, data, formula=~1, y=NULL, fitY.LZX=NULL,
   #collect useful stuff  
   stuff <- utilityfun(Z=Z, X=X, Y=Y, type=type, data=data, 
     formula=formula, y=y, fitY.LZX=fitY.LZX, fitX.LZ=fitX.LZ, fitX.L=fitX.L,
-    fitZ.L=fitZ.L)
+    fitZ.L=fitZ.L, fit.detail=fit.detail)
   est.nuisance <- stuff$est.nuisance
   nZ <- stuff$nZ
   nX.LZ <- stuff$nX.LZ
@@ -301,7 +249,7 @@ gest <- function(Z, X, Y, type, data, formula=~1, y=NULL, fitY.LZX=NULL,
       sandwich.fitX.L <- sandwich(fit=fitX.L, data=data, weights=weights) 
     if(!is.null(fitY.LZX))
       sandwich.fitY.LZX <- sandwich(fit=fitY.LZX, data=data, weights=weights,
-        t=y) 
+        t=y, fit.detail=fit.detail) 
     Upsi <- Upsifun(b=c(est, est.nuisance), Z=Z, X=X, Y=Y, type=type, 
       fitZ.L=fitZ.L, fitX.LZ=fitX.LZ, fitX.L=fitX.L, fitY.LZX=fitY.LZX, 
       npsi=npsi, nZ=nZ, nX.LZ=nX.LZ, nX.L=nX.L, nY=nY, designpsi=designpsi, 
@@ -366,8 +314,8 @@ gest <- function(Z, X, Y, type, data, formula=~1, y=NULL, fitY.LZX=NULL,
 
 }
 
-Hfun <- function(fit, data){
-  if(class(fit)[1]=="survfit"){
+Hfun <- function(fit, data, fit.detail){
+  if(inherits(x=fit, what="survfit")){
     #need to use summary(fit), since n.events and n.risk from fit 
     #behave strange when there is left truncation     
     ss <- summary(fit)
@@ -389,16 +337,16 @@ Hfun <- function(fit, data){
     }
     names(H) <- names.strata
   }
-  if(class(fit)[1]=="coxph"){  
-    fit.detail <- coxph.detail(fit)
+  if(inherits(x=fit, what="coxph")){  
     time <- fit.detail$time
     #dH is weighted
     dH <- fit.detail$hazard
-    H <- stepfun(time, c(0, cumsum(dH)))          
+    H <- stepfun(time, c(0, cumsum(dH)))         
   }   
   
   return(H)
 }
+
 
 ivah <- function(estmethod, X, T, fitZ.L=NULL, fitX.LZ=NULL, fitT.LX=NULL,
   data, ctrl=FALSE, clusterid=NULL, event, max.time, max.time.psi, n.sim=100, 
@@ -631,13 +579,24 @@ ivcoxph <- function(estmethod, X, fitZ.L=NULL, fitX.LZ=NULL, fitX.L=NULL,
     }else{
       Z <- NULL
       X <- all.vars(fitX.LZ$formula)[1]
-    }
-    tmp <- all.vars(fitT.LZX$call$formula[[2]])  
-    Y <- tmp[length(tmp)-1]
+    } 
     type <- "coxph"
+    if(inherits(x=fitT.LZX, what="coxph")){
+      tmp <- all.vars(fitT.LZX$formula[[2]])
+      fit.detail <- coxph.detail(object=fitT.LZX)
+    }
+    if(inherits(x=fitT.LZX, what="survfit")){
+      #survfit object has no formula element, so need to get it from call,
+      #need to use eval, since the fit$call$formula will be literary what the user
+      #gave as argument, e.g. if formula=f, then fit$call$formula is f, not the 
+      #formula contained in f
+      tmp <- all.vars(eval(fitT.LZX$call$formula)[[2]]) 
+      fit.detail <- NULL  
+    }
+    Y <- tmp[length(tmp)-1]
     result <- gest(Z=Z, X=X, Y=Y, type=type, data=data, formula=formula, y=t,
       fitY.LZX=fitT.LZX, fitX.LZ=fitX.LZ, fitX.L=fitX.L, fitZ.L=fitZ.L, 
-      clusterid=clusterid, vcov.fit=vcov.fit, ...)
+      clusterid=clusterid, vcov.fit=vcov.fit, fit.detail=fit.detail, ...)
     result$t <- result$y
     result$y <- NULL
   }
@@ -645,7 +604,6 @@ ivcoxph <- function(estmethod, X, fitZ.L=NULL, fitX.LZ=NULL, fitX.L=NULL,
     warning("No solution to the estimating equation was found")
   result$call <- call 
   result$input <- input
-  class(result) <- c("ivglm", "ivmod")
   class(result) <- c("ivcoxph", "ivmod")
   return(result)
 
@@ -831,13 +789,13 @@ print.summary.ivmod <- function(x, digits=max(3L, getOption("digits")-3L),
   cat("\n") 
 }
 
-sandwich <- function(fit, data, weights, t){
+sandwich <- function(fit, data, weights, t, fit.detail){
 
   n <- nrow(data)
   if(missing(weights))
     weights <- rep(1, n)
   
-  if(class(fit)[1]=="glm"){
+  if(inherits(x=fit, what="glm")){
     
     #---meat---
     
@@ -852,7 +810,7 @@ sandwich <- function(fit, data, weights, t){
     I <- -solve(summary(fit)$cov.unscaled)/n  
     
   }
-  if(class(fit)[1]=="ah"){
+  if(inherits(x=fit, what="ah")){
   
     #---meat---
     
@@ -864,7 +822,7 @@ sandwich <- function(fit, data, weights, t){
     U <- res
     
   }
-  if(class(fit)[1]=="coxph"){
+  if(inherits(x=fit, what="coxph")){
   
     #---meat for regression coefficients---
     
@@ -893,13 +851,12 @@ sandwich <- function(fit, data, weights, t){
       #---meat and bread for baseline hazard---
     
       #check if left truncation
-      varsLHS <- all.vars(fit$call$formula[[2]]) 
+      varsLHS <- all.vars(fit$formula[[2]]) 
       t2 <- varsLHS[length(varsLHS)-1]
       if(length(varsLHS)==3)
         t1 <- varsLHS[1]  
       else
         t1 <- NULL
-      fit.detail <- coxph.detail(object=fit)
       time <- fit.detail$time
       #nevent is unweighted
       nevent <- fit.detail$nevent
@@ -946,12 +903,16 @@ sandwich <- function(fit, data, weights, t){
     }
       
   }
-  if(class(fit)[1]=="survfit"){ 
+  if(inherits(x=fit, what="survfit")){ 
   
     #---meat---
     
     #check if left truncation
-    varsLHS <- all.vars(fit$call$formula[[2]]) 
+    #survfit object has no formula element, so need to get it from call,
+    #need to use eval, since the fit$call$formula will be literary what the user
+    #gave as argument, e.g. if formula=f, then fit$call$formula is f, not the 
+    #formula contained in f  
+    varsLHS <- all.vars(eval(fit$call$formula)[[2]]) 
     t2 <- varsLHS[length(varsLHS)-1]
     if(length(varsLHS)==3)
       t1 <- varsLHS[1]  
@@ -972,7 +933,11 @@ sandwich <- function(fit, data, weights, t){
     dH <- n.event/n.risk
     names(dH) <- paste(time, strata)
     dHvar <- dH/n.risk
-    vars <- all.vars(fit$call$formula[[3]])
+    #survfit object has no formula element, so need to get it from call,
+    #need to use eval, since the fit$call$formula will be literary what the user
+    #gave as argument, e.g. if formula=f, then fit$call$formula is f, not the 
+    #formula contained in f
+    vars <- all.vars(eval(fit$call$formula)[[3]])
     #note: strata is a function in the survival package
     strata.all <- strata(data[, vars, drop=FALSE]) 
     tmp1 <- matrix(nrow=n, ncol=K) 
@@ -1144,7 +1109,7 @@ summary.ivmod <- function(object, ...) {
   dimnames(coef.table) <- list(names(object$est), c("Estimate", 
       "Std. Error", "z value", "Pr(>|z|)"))
   ans <- list(call=object$call, coefficients=coef.table, t=object$t)
-  if(class(object)[1]=="ivah" & object$input$estmethod=="g"){
+  if(inherits(x=object, what="ivah") & object$input$estmethod=="g"){
     test0 <- cbind(object$pval_0) 
     colnames(test0)  <- c("Supremum-test pval")
     rownames(test0)<- c(object$input$X) 
@@ -1191,7 +1156,7 @@ tsest <- function(fitX.LZ, fitY.LX, data, ctrl=FALSE, clusterid=NULL,
   nY <- length(fitY.LX$coef)  
   
   #converged?
-  if(class(fitY.LX)[1]=="glm"){  
+  if(inherits(x=fitY.LX, what="glm")){  
     converged <- fitY.LX$converged
   }                               
   else{                           
@@ -1214,7 +1179,7 @@ tsest <- function(fitX.LZ, fitY.LX, data, ctrl=FALSE, clusterid=NULL,
       data.Xhat[, X]  <- Xhat
       if(ctrl)
         data.Xhat[, "R"] <- data[, X]-Xhat
-      if(class(fitY.LX)[1]=="glm"){
+      if(inherits(x=fitY.LX, what="glm")){
         designY <- expand(model.matrix(object=fitY.LX$formula, data=data.Xhat), 
           rownames(data))
         Yhat <- as.vector(family(fitY.LX)$linkinv(designY%*%est))
@@ -1222,12 +1187,12 @@ tsest <- function(fitX.LZ, fitY.LX, data, ctrl=FALSE, clusterid=NULL,
         resY <- Y-Yhat
         UY <- weights*resY*designY
       }
-      if(class(fitY.LX)[1]=="coxph"){
+      if(inherits(x=fitY.LX, what="coxph")){
         fitY.LX$call$data <- data.Xhat
         resY <- expand(residuals(object=fitY.LX, type="score"), rownames(data))
         UY <- as.matrix(weights*resY)
       }
-      if(class(fitY.LX)[1]=="ah"){
+      if(inherits(x=fitY.LX, what="ah")){
         fitY.LX$data$X <- model.matrix(object=fitY.LX$formula, 
           data=data.Xhat)[, -1, drop=FALSE] 
         resY <- predict(object=fitY.LX, type="residuals")
@@ -1239,13 +1204,13 @@ tsest <- function(fitX.LZ, fitY.LX, data, ctrl=FALSE, clusterid=NULL,
       UY[is.na(UY)] <- 0  
       colMeans(UY)
     } 
-    if(class(fitY.LX)[1]=="glm")
+    if(inherits(x=fitY.LX, what="glm"))
       IY <- cbind(jacobian(func=UYfunc, x=fitX.LZ$coef),
         -solve(summary(object=fitY.LX)$cov.unscaled)/n)
-    if(class(fitY.LX)[1]=="coxph")
+    if(inherits(x=fitY.LX, what="coxph"))
       IY <- cbind(jacobian(func=UYfunc, x=fitX.LZ$coef),
         -solve(vcov(object=fitY.LX))/n)   
-    if(class(fitY.LX)[1]=="ah")
+    if(inherits(x=fitY.LX, what="ah"))
       IY <- cbind(jacobian(func=UYfunc, x=fitX.LZ$coef),
         -fitY.LX$D/n)
     I <- rbind(IX, IY)
@@ -1273,10 +1238,68 @@ tsest <- function(fitX.LZ, fitY.LX, data, ctrl=FALSE, clusterid=NULL,
   
 }
 
+#computes estimating function for each subject
+Upsifun <- function(b, Z, X, Y, type, fitZ.L, fitX.LZ, fitX.L, fitY.LZX, 
+  npsi, nZ, nX.LZ, nX.L, nY, designpsi, designZ, designX.LZ, designX.L, designY, 
+  weights, data){
+
+  n <- nrow(data)
+  psi <- b[1:npsi]
+  g <- designpsi*data[, X]
+  lppsi <- as.vector(g%*%psi)
+  if(is.null(fitX.LZ)){
+    nd <- nZ
+  }else{
+    nd <- nX.LZ+nX.L  
+  }
+  if(type=="identity")
+    Y0hat <- data[, Y]-lppsi
+  if(type=="log")
+    Y0hat <- data[, Y]*exp(-lppsi)
+  if(type=="logit"){
+    bY <- b[(npsi+nd+1):(npsi+nd+nY)]
+    lpY <- as.vector(designY%*%bY)
+    Y0hat <- plogis(lpY-lppsi)  
+  }
+  if(type=="coxph"){
+    if(inherits(x=fitY.LZX, what="survfit")){
+        H <- b[(npsi+nd+1):(npsi+nd+nY)]
+        #survfit object has no formula element, so need to get it from call,
+        #need to use eval, since the fit$call$formula will be literary what the user
+        #gave as argument, e.g. if formula=f, then fit$call$formula is f, not the 
+        #formula contained in f
+        vars <- all.vars(eval(fitY.LZX$call$formula)[[3]])
+        strata.all <- strata(data[, vars, drop=FALSE])
+        Y0hat <- exp(-H[strata.all]*exp(-lppsi))  
+      }
+    if(inherits(x=fitY.LZX, what="coxph")){
+      bY <- b[(npsi+nd+1):(npsi+nd+nY-1)]
+      H0 <- b[npsi+nd+nY]
+      lpY <- as.vector(designY%*%bY)  
+      Y0hat <- exp(-H0*exp(lpY-lppsi))
+    }
+  }
+  if(is.null(fitX.LZ)){
+    bZ <- b[(npsi+1):(npsi+nZ)]
+    d <- designpsi*(data[, Z]-as.vector(family(fitZ.L)$linkinv(designZ%*%bZ)))     
+  }else{
+    bX.LZ <- b[(npsi+1):(npsi+nX.LZ)]
+    bX.L <- b[(npsi+nX.LZ+1):(npsi+nX.LZ+nX.L)] 
+    d <- designpsi*(as.vector(family(fitX.LZ)$linkinv(designX.LZ%*%bX.LZ))-
+      as.vector(family(fitX.L)$linkinv(designX.L%*%bX.L)))      
+  } 
+  Upsi <- weights*d*Y0hat
+  Upsi[is.na(Upsi)] <- 0
+  colnames(Upsi) <- names(psi)
+
+  return(Upsi)
+  
+}
+
 #extracts and computes various useful stuff for G-estimation  
 utilityfun <- function(Z, X, Y, type, data, formula, y, fitY.LZX, fitX.LZ, 
-  fitX.L, fitZ.L){
-  
+  fitX.L, fitZ.L, fit.detail){
+ 
   n <- nrow(data)
   
   #stuff related to Z or X
@@ -1311,14 +1334,13 @@ utilityfun <- function(Z, X, Y, type, data, formula, y, fitY.LZX, fitX.LZ,
     designY <- expand(model.matrix(object=fitY.LZX), rownames(data))
     est.nuisance <- c(est.nuisance, fitY.LZX$coef)
   }
-  if(type=="coxph"){
-    #left-truncation?    
-    if(type=="coxph"){   
-      temp <- all.vars(fitY.LZX$call$formula[[2]])
-      if(length(temp)==3) 
-        t1 <- temp[1]  
-    }
-    if(class(fitY.LZX)[1]=="survfit"){
+  if(type=="coxph"){ 
+    if(inherits(x=fitY.LZX, what="survfit")){
+      #survfit object has no formula element, so need to get it from call,
+      #need to use eval, since the fit$call$formula will be literary what the user
+      #gave as argument, e.g. if formula=f, then fit$call$formula is f, not the 
+      #formula contained in f
+      temp <- all.vars(eval(fitY.LZX$call$formula)[[2]])
       designY <- NULL
       H <- Hfun(fit=fitY.LZX, data=data)
       nY <- length(H)
@@ -1327,12 +1349,16 @@ utilityfun <- function(Z, X, Y, type, data, formula, y, fitY.LZX, fitX.LZ,
         Hy[k] <- H[[k]](y)
       est.nuisance <- c(est.nuisance, Hy)
     }
-    if(class(fitY.LZX)[1]=="coxph"){
+    if(inherits(x=fitY.LZX, what="coxph")){
+      temp <- all.vars(fitY.LZX$formula[[2]])
       designY <- expand(model.matrix(object=fitY.LZX), rownames(data))
-      H <- Hfun(fit=fitY.LZX, data=data)  
+      H <- Hfun(fit=fitY.LZX, data=data, fit.detail=fit.detail)  
       est.nuisance <- c(est.nuisance, fitY.LZX$coef, H(y))  
       nY <- length(fitY.LZX$coef)+1      
-    }   
+    } 
+    #left-truncation?    
+    if(length(temp)==3) 
+      t1 <- temp[1]    
   }
   
   #stuff related to psi 

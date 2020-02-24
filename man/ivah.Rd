@@ -196,6 +196,9 @@ Instrumental variables estimation of exposure effects on a time-to-event
 endpoint using structural cumulative survival models. 
 \emph{Epidemiology} \bold{73}(4): 1140-1149.
 
+Sjolander A., Martinussen T. (2019). Instrumental variable estimation with the R package ivtools.
+\emph{Epidemiologic Methods} \bold{8}(1), 1-20.
+
 Tchetgen Tchetgen E.J., Walter S., Vansteelandt S., Martinussen T., Glymour M. (2015).
 Instrumental variable estimation in a survival context. \emph{Epidemiology} \bold{26}(3): 402-410. 
 

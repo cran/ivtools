@@ -28,7 +28,7 @@ the data were slightly mutilated before inclusion in the
 
 \references{
 
-Martinussen T., Sorensen D.D., Vansteelandt S. (2017). 
+Martinussen T., Sorensen D.D., Vansteelandt S. (2019). 
 Instrumental variables estimation under a structural Cox model.
-\emph{Biostatistics} <doi:10.1093/biostatistics/kxx057>.
+\emph{Biostatistics} \bold{20}(1), 65-79.
 }
